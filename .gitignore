@@ -201,3 +201,5 @@ $RECYCLE.BIN/
 
 *.python-version
 .vscode/
+images/
+data/
