@@ -203,3 +203,4 @@ $RECYCLE.BIN/
 .vscode/
 images/
 data/
+config.py
