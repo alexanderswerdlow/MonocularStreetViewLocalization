@@ -4,12 +4,11 @@ import requests_cache
 import requests
 from util import Pano, Loc, separate_loc_list, combine_lat_long_lists, get_existing_panoramas, save_existing_panoramas
 from gpx_interpolate import gpx_interpolate
-from urllib.parse import quote
 import streetview
 from PIL import Image
 from depth import get_depth_map
 from waypoints import westwood_blvd
-from config import images_dir
+from config import images_dir, sqlite_path
 
 meta_base = 'https://maps.googleapis.com/maps/api/streetview/metadata?'
 pic_base = 'https://maps.googleapis.com/maps/api/streetview?'
@@ -20,7 +19,7 @@ fov = 90
 size = '640x640'
 
 # Creates street_view_cache.sqlite if it doesn't already exist, reduces API usage
-requests_cache.install_cache('street_view_cache', cache_control=False, expire_after=-1)
+requests_cache.install_cache(sqlite_path, cache_control=False, expire_after=-1)
 
 traj = westwood_blvd
 gpx_data = {'lat': separate_loc_list(traj)[0],

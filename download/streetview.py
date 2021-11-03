@@ -21,9 +21,9 @@ from PIL import Image
 from io import BytesIO
 import os
 import numpy as np
-from skimage import io
+from config import sqlite_path
 
-requests_cache.install_cache('street_view_cache', cache_control=False, expire_after=-1)
+requests_cache.install_cache(f'sqlite_path', cache_control=False, expire_after=-1)
 def _panoids_url(lat, lon):
     """
     Builds the URL of the script on Google's servers that returns the closest
