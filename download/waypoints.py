@@ -1,4 +1,4 @@
-from util import Loc
+from download.util import Loc
 
 westwood_blvd = [  # Defines path to be interpolated
     Loc(34.06368620973906, -118.44542104801609),

@@ -2,21 +2,21 @@ import gmplot
 import pyproj
 import requests_cache
 import requests
-from util import Pano, Loc, separate_loc_list, combine_lat_long_lists, get_existing_panoramas, save_existing_panoramas
-from gpx_interpolate import gpx_interpolate
-import streetview
+from download.util import Pano, Loc, separate_loc_list, combine_lat_long_lists, get_existing_panoramas, save_existing_panoramas
+from download.gpx_interpolate import gpx_interpolate
+from download import streetview
 from PIL import Image
-from depth import get_depth_map
-from waypoints import westwood_blvd
-from config import images_dir, sqlite_path
+from download.depth import get_depth_map
+from download.waypoints import westwood_blvd
+from config import images_dir, sqlite_path, data_dir
+from io import BytesIO
 
 meta_base = 'https://maps.googleapis.com/maps/api/streetview/metadata?'
 pic_base = 'https://maps.googleapis.com/maps/api/streetview?'
 api_key = 'AIzaSyBjB2MBFlKlTIAbnG8D_t1oPqfObdR0xAA'  # TODO: Deactive the API key before we make the repo public
 
 geodesic = pyproj.Geod(ellps='WGS84')
-fov = 90
-size = '640x640'
+fov, img_w, img_h = 90, 640, 640
 
 # Creates street_view_cache.sqlite if it doesn't already exist, reduces API usage
 requests_cache.install_cache(sqlite_path, cache_control=False, expire_after=-1)
@@ -29,7 +29,7 @@ gpx_data = {'lat': separate_loc_list(traj)[0],
             'tzinfo': None}
 
 # If num = 0, res determines spacing of points, deg must be [1, 5]
-interpolated_points = combine_lat_long_lists(*gpx_interpolate(gpx_data, num=0, res=1, deg=1))
+interpolated_points = combine_lat_long_lists(*gpx_interpolate(gpx_data, num=4, res=1, deg=1))
 
 
 def get_meta():
@@ -46,8 +46,7 @@ def get_meta():
             if fwd_azimuth < 0:
                 fwd_azimuth += 360
 
-            pano_loc = Loc(meta_response.json()['location']['lat'], meta_response.json()['location']['lng'])
-            pano = Pano(pano_loc, fwd_azimuth, meta_response.json()['pano_id'], fov, size)
+            pano = Pano(Loc(meta_response.json()['location']['lat'], meta_response.json()['location']['lng']), meta_response.json()['pano_id'])
             panoramas.add(pano)
             if not meta_response.from_cache:
                 print(f"Meta not from cache! idx:{idx}")
@@ -62,8 +61,7 @@ def get_depth_maps(p):
     # im = depthinfo_to_image()
     # im.save(f'{images_dir}/{pano.get_name()}-depth.png')
     # xform.cut_tiles_and_package_to_zip(im, "dpth", '1I3aa1QeAHLC7b5Ar12nWg', "png")
-
-    existing_panos.add(p._replace(depth_map=get_depth_map(pano_id=pano.pano_id)))
+    existing_panos.add(p._replace(depth_map=get_depth_map(pano_id=p.pano_id)))
 
 
 def get_unofficial(p):
@@ -73,22 +71,25 @@ def get_unofficial(p):
 
 
 def get_official(p):
-    _, heading, pano_id, fov_, size_ = p
-    pic_params = {'key': api_key, 'pano': pano_id, 'size': size_, 'fov': fov_, 'heading': heading}
-    with requests.get(pic_base, params=pic_params) as pic_response:
-        if not pic_response.from_cache:
-            print("Image not from cache!")
+    _, pano_id, _ = p
+    panorama = Image.new('RGB', (img_w*4, img_h))
+    for i in range(4):
+        pic_params = {'key': api_key, 'pano': pano_id, 'size': f'{img_w}x{img_h}', 'fov': fov, 'heading': str(i * 90)}
+        with requests.get(pic_base, params=pic_params) as pic_response:
+            if not pic_response.from_cache:
+                print("Image not from cache!")
 
-        if pic_response.ok:
-            with open(f'{images_dir}/{p.get_name()}.jpg', 'wb') as file:
-                file.write(pic_response.content)
+            if pic_response.ok:
+                panorama.paste(im=Image.open(BytesIO(pic_response.content)), box=(i*img_w, 0))
+
+    panorama.save(f'{images_dir}/{p.get_name()}.jpg')
 
 
 def plot(panos):
     gmap3 = gmplot.GoogleMapPlotter(34.061157672886466, -118.44550056779205, 17, apikey=api_key)
     gmap3.scatter(*separate_loc_list(list(set([x.loc for x in panos]))), '#FF0000', size=5, marker=True)
     # gmap3.plot(*separate_loc_list([x.loc for x in existing_panoramas]), 'cornflowerblue', edge_width=2.5)
-    gmap3.draw("download/image_locations.html")
+    gmap3.draw(f"{data_dir}/image_locations.html")
 
 
 existing_panos = get_existing_panoramas()
@@ -98,7 +99,7 @@ panos_to_get = potential_panos - existing_panos  # Don't redownload images alrea
 print(f'Potential: {len(potential_panos)}, Existing: {len(existing_panos)}, To Get: {len(panos_to_get)}')
 
 for pano in panos_to_get:
-    get_unofficial(pano)
+    get_official(pano)
     get_depth_maps(pano)
 
 save_existing_panoramas(existing_panos)
