@@ -7,6 +7,7 @@ import sys
 VID = 'VID'
 IMU = 'IMU'
 GPS = 'GPS'
+AR  = 'AR'
 
 class SensorData:
     def __init__(self, data_dir, file, freq, default, stype):
@@ -32,18 +33,20 @@ class DataLog:
     Frequency is based on the highest set freqency when creating datalog
     Other 2 sensors will have the reading at the closest following timestamp
     """
-    def __init__(self, data_dir, vid_freq, imu_freq, gps_freq):
+    def __init__(self, data_dir, vid_freq=FRAMES_DEFAULT, imu_freq=MOTION_DEFAULT, 
+                 gps_freq=GPS_DEFAULT, ar_freq=AR_DEFAULT):
 
         self.sensors = [
             SensorData(data_dir, FRAMES_CSV, vid_freq, FRAMES_DEFAULT, VID),
             SensorData(data_dir, MOTION_CSV, imu_freq, MOTION_DEFAULT, IMU),
-            SensorData(data_dir, GPS_CSV, gps_freq, GPS_DEFAULT, GPS)
+            SensorData(data_dir, GPS_CSV, gps_freq, GPS_DEFAULT, GPS),
+            SensorData(data_dir, AR_CSV, ar_freq, AR_DEFAULT, AR)
         ]
 
         # sensor with highest reading frequency
         self.ref = max(self.sensors, key=lambda k: k.freq)
 
-        # other 2 sensors
+        # other sensors
         self.others = [s for s in self.sensors if s is not self.ref]
 
         self.vid_ref = self.ref.type == VID
@@ -69,7 +72,7 @@ class DataLog:
         other_lines = [next(s.reader) for s in self.others]
 
         timestamp = float(ref_line[0])
-        last_frame = None
+        last_frame = -1
         dup_count = 0
         while self.ref.reader:
             # reference reading
@@ -94,6 +97,7 @@ class DataLog:
             vid_line = self.vid_ref and ref_line or other_lines[0]
             imu_line = self.vid_ref and other_lines[0] or ref_line
             gps_line = other_lines[1]
+            ar_line  = other_lines[2]
 
             # set new frame flag 
             frame_flag = [0]
@@ -101,8 +105,8 @@ class DataLog:
                 frame_flag = [1]
             last_frame = int(vid_line[1])
 
-            self.log.append(frame_flag + vid_line + imu_line + gps_line)
+            self.log.append(frame_flag + vid_line + imu_line + gps_line + ar_line)
         
         # convert log to dataframe
-        log_columns = ['new_frame'] + FRAMES_FIELDS + MOTION_FIELDS + GPS_FIELDS
+        log_columns = ['new_frame'] + FRAMES_FIELDS + MOTION_FIELDS + GPS_FIELDS + AR_FIELDS
         return pd.DataFrame(self.log, columns=log_columns)

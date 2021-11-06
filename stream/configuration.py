@@ -1,11 +1,13 @@
 
 FRAMES_CSV = 'Frames.txt'
-GPS_CSV = 'GPS.txt'
+GPS_CSV    = 'GPS.txt'
 MOTION_CSV = 'MotARH.txt'
+AR_CSV     = 'ARposes.txt'
 
 FRAMES_DEFAULT = 30
 GPS_DEFAULT    = 1
 MOTION_DEFAULT = 100
+AR_DEFAULT     = 60
 
 FRAMES_FIELDS = [
     'frame_timestamp',
@@ -40,4 +42,15 @@ GPS_FIELDS = [
     'floor_level',
     'course',
     'speed'
+]
+
+AR_FIELDS = [
+    'ar_timestamp',
+    'ar_translation_x',
+    'ar_translation_y',
+    'ar_translation_z',
+    'ar_quaternion_w',
+    'ar_quaternion_x',
+    'ar_quaternion_y',
+    'ar_quaternion_z'
 ]
