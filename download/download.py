@@ -9,7 +9,6 @@ from PIL import Image
 from download.depth import get_depth_map
 from download.waypoints import westwood_blvd
 from config import images_dir, sqlite_path, data_dir
-from io import BytesIO
 
 meta_base = 'https://maps.googleapis.com/maps/api/streetview/metadata?'
 pic_base = 'https://maps.googleapis.com/maps/api/streetview?'
@@ -29,7 +28,7 @@ gpx_data = {'lat': separate_loc_list(traj)[0],
             'tzinfo': None}
 
 # If num = 0, res determines spacing of points, deg must be [1, 5]
-interpolated_points = combine_lat_long_lists(*gpx_interpolate(gpx_data, num=4, res=1, deg=1))
+interpolated_points = combine_lat_long_lists(*gpx_interpolate(gpx_data, num=0, res=1, deg=1))
 
 
 def get_meta():
@@ -65,25 +64,22 @@ def get_depth_maps(p):
 
 
 def get_unofficial(p):
-    panorama = streetview.download_panorama_v3(p.pano_id, zoom=3, disp=False)
+    panorama = streetview.download_panorama_v3(p.pano_id)
     im = Image.fromarray(panorama)
     im.save(f'{images_dir}/{p.get_name()}.png')
 
 
 def get_official(p):
     _, pano_id, _ = p
-    panorama = Image.new('RGB', (img_w*4, img_h))
-    for i in range(4):
-        pic_params = {'key': api_key, 'pano': pano_id, 'size': f'{img_w}x{img_h}', 'fov': fov, 'heading': str(i * 90)}
+    for i in range(8):
+        pic_params = {'key': api_key, 'pano': pano_id, 'size': f'{img_w}x{img_h}', 'fov': fov, 'heading': str(i * 45)}
         with requests.get(pic_base, params=pic_params) as pic_response:
             if not pic_response.from_cache:
                 print("Image not from cache!")
 
             if pic_response.ok:
-                panorama.paste(im=Image.open(BytesIO(pic_response.content)), box=(i*img_w, 0))
-
-    panorama.save(f'{images_dir}/{p.get_name()}.jpg')
-
+                with open(f'{images_dir}/{p.get_name()}-{pic_params["heading"]}.jpg', 'wb') as file:
+                    file.write(pic_response.content)
 
 def plot(panos):
     gmap3 = gmplot.GoogleMapPlotter(34.061157672886466, -118.44550056779205, 17, apikey=api_key)
@@ -100,6 +96,7 @@ print(f'Potential: {len(potential_panos)}, Existing: {len(existing_panos)}, To G
 
 for pano in panos_to_get:
     get_official(pano)
+    # get_official(pano)
     get_depth_maps(pano)
 
 save_existing_panoramas(existing_panos)

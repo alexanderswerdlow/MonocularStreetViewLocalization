@@ -44,12 +44,16 @@ def get_existing_panoramas() -> set[Pano]:
 
     mypath = f'{images_dir}/'
     onlyfiles = set([splitext(f)[0] for f in listdir(mypath) if isfile(join(mypath, f)) and f != '.DS_Store' and f != 'meta.p'])
+    to_remove = set()
     for p in existing_panoramas:
-        if p.pano_id not in onlyfiles:
-            existing_panoramas.remove(p)
+        for i in range(8):
+            if f'{p.pano_id}-{str(i * 45)}' not in onlyfiles:
+                to_remove.add(p)
+
+    for p in to_remove:
+        existing_panoramas.remove(p)
 
     return existing_panoramas
-
 
 def save_existing_panoramas(panos):
     pickle.dump(panos, open(f"{images_dir}/meta.p", "wb"))
