@@ -5,15 +5,24 @@ import os
 import time
 import cv2
 import pandas as pd
+import numpy as np
 
+from localization.feature_matching import FeatureTracker
 from download.query import query
 from download.util import Loc
+from utilities import convert_tuple_to_keypoints, load_pano_features
+from config import images_dir, skip_frames
 
 class LocalizationProcess(multiprocessing.Process):
     def __init__(self, data_queue, location_queue):
         multiprocessing.Process.__init__(self)
         self.data_queue = data_queue
         self.location_queue = location_queue
+        self.feature_tracker = FeatureTracker()
+        self.previous_localized_position = None
+        self.previous_frame_features = None
+
+        self.frame_count = 0
     
     def run(self):
         print("Starting Localization Process")
@@ -23,16 +32,55 @@ class LocalizationProcess(multiprocessing.Process):
                 print("Exiting Localization Process")
                 self.data_queue.task_done()
                 break
+
+            self.frame_count += 1
+            if self.frame_count < skip_frames:
+                continue
+
             # localize frame
-            self.localize(frame, gps)
+            self.localize_two_panoramas(frame, gps)
             location = None # replace
             self.location_queue.put(location)
             self.data_queue.task_done()
 
-    def localize(self, frame, gps):
-        loc = Loc(gps[0], gps[1])
-        panoramas = query(loc)
-        print(panoramas)
+    def localize_two_panoramas(self, frame, location):
+        # loc = Loc(location[0], location[1])
+        loc = Loc(34.059467, -118.444455)
+        panoramas = query(loc, n_points=10, distance_upper_bound=100)
+        print([p.pano_id for p in panoramas])
+        self.feature_tracker.extract_features(frame)
+        matches = self.feature_tracker.find_best_pano_images(panoramas)
+        n_matches = 30
+        cv2.imshow('frame', frame)
+        cv2.waitKey(0)
+        for i in range(n_matches):
+            match = matches[i]
+            print(f'Match with number of features: {match[-1]}')
+            reference_img = cv2.imread(os.path.join(images_dir, f'{match[0].pano_id}-{match[1]}.jpg'))
+            reference_img = cv2.drawMatchesKnn(frame, self.feature_tracker.current_frame_features[0], reference_img, match[2], match[-2], None, flags=2)
+            cv2.imshow('FLANN matched features', reference_img)
+            cv2.waitKey(0)
+            # cv2.imshow('best match', ))
+            # cv2.waitKey(0)
+            
+
+    def localize_panorama_prev_frame(self, frame):
+        self.feature_tracker.extract_features(frame)
+        loc = Loc(self.previous_localized_position[0], self.previous_localized_position[1])
+        panoramas = query(loc, n_points=1, distance_upper_bound=50)
+        matches = []
+        for pano in panoramas:
+            features_dict = load_pano_features(pano.pano_id)
+            for heading, features in features_dict.items():
+                kp, des = features
+                kp = convert_tuple_to_keypoints(kp)
+                points1, points2, goodMatches = self.feature_tracker.match_features(kp, des, cv2.imread(os.path.join(images_dir, f'{pano.pano_id}-{heading}.jpg')))
+                matches.append([pano, heading, points1, points2, len(goodMatches)])
+                print(len(goodMatches))
+        matches.sort(key=lambda row: row[-1])
+        print(matches)
+        self.previous_frame_features = self.feature_tracker.current_frame_features
+
 
 class Vehicle:
     def __init__(self, data_dir):
@@ -50,10 +98,10 @@ class Vehicle:
         self.localization_process.start()
         self.stream_log(stream_freq)
 
-        print("Waiting to Join Localization Process")
-        self.data_queue.join()
-        self.localization_process.join()
-        print("Terminated Localization Process")
+        # print("Waiting to Join Localization Process")
+        # self.data_queue.join()
+        # self.localization_process.join()
+        # print("Terminated Localization Process")
 
     def stream_log(self, frequency):
         for index, row in self.log.iterrows():
@@ -63,7 +111,6 @@ class Vehicle:
             gps = [row['latitude'], row['longitude']]
             # read other sensor data here
             if row['new_frame'] == 1:
-                print('New Frame!')
                 ret, frame = self.video.read()
                 self.data_queue.put([frame, gps])
             time.sleep(1/frequency)
