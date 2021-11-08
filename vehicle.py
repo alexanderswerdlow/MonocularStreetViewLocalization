@@ -44,11 +44,12 @@ class LocalizationProcess(multiprocessing.Process):
             self.data_queue.task_done()
 
     def localize_two_panoramas(self, frame, location):
+        frame = cv2.resize(frame, (640, int(640*frame.shape[0]/frame.shape[1])), interpolation=cv2.INTER_AREA)
         # loc = Loc(location[0], location[1])
-        loc = Loc(34.059467, -118.444455)
+        loc = Loc(34.060644, -118.445362)
         panoramas = query(loc, n_points=10, distance_upper_bound=100)
         print([p.pano_id for p in panoramas])
-        self.feature_tracker.extract_features(frame)
+        self.feature_tracker.extract_features(frame, show_keypoints=True)
         matches = self.feature_tracker.find_best_pano_images(panoramas)
         n_matches = 30
         cv2.imshow('frame', frame)
@@ -60,8 +61,6 @@ class LocalizationProcess(multiprocessing.Process):
             reference_img = cv2.drawMatchesKnn(frame, self.feature_tracker.current_frame_features[0], reference_img, match[2], match[-2], None, flags=2)
             cv2.imshow('FLANN matched features', reference_img)
             cv2.waitKey(0)
-            # cv2.imshow('best match', ))
-            # cv2.waitKey(0)
             
 
     def localize_panorama_prev_frame(self, frame):

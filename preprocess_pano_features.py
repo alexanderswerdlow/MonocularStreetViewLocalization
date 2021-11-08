@@ -18,12 +18,9 @@ for pano in panoramas:
     for heading in headings:
         fp = os.path.join(images_dir, f'{pano.pano_id}-{heading}.jpg')
         img = cv2.imread(fp)
-        feature_tracker.extract_features(img)
+        # img = cv2.resize(img, (1920, 1920), interpolation=cv2.INTER_LANCZOS4)
+        feature_tracker.extract_features(img, show_keypoints=False)
         kp, des = feature_tracker.current_frame_features
-
-        # img_kp = cv2.drawKeypoints(img, kp, img, color=(255,0,0))
-        # cv2.imshow('Keypoints', img_kp)
-        # cv2.waitKey(0)
 
         feature_dict[heading] = (convert_keypoints_to_tuple(kp), des)
     pickle.dump(feature_dict, open(os.path.join(images_dir, f'{pano.pano_id}_features.dat'), 'wb'))
