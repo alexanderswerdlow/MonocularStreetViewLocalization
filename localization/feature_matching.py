@@ -13,9 +13,10 @@ class FeatureTracker:
     def extract_features(self, frame, show_keypoints=False):
         self.current_frame = frame
         frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        detector = cv2.ORB_create()
+        frame_gray_eq = cv2.equalizeHist(frame_gray)
+        detector = cv2.SIFT_create()
         # detector = cv2.SIFT_create(contrastThreshold=0.025)
-        kp, des = detector.detectAndCompute(frame_gray, None)
+        kp, des = detector.detectAndCompute(frame_gray_eq, None)
         des = np.float32(des)
         self.current_frame_features = (kp, des)
 
@@ -65,6 +66,7 @@ class FeatureTracker:
 
         if reference_frame is not None:
             img = cv2.drawMatchesKnn(self.current_frame, self.current_frame_features[0], reference_frame, reference_kp, goodMatches, None, flags=2)
+            img = cv2.drawMatchesKnn(cv2.equalizeHist(self.current_frame), self.current_frame_features[0], cv2.equalizeHist(reference_frame), reference_kp, goodMatches, None, flags=2)
             cv2.imshow('FLANN matched features', img)
             cv2.waitKey(0)
 
