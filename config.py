@@ -7,3 +7,4 @@ images_dir = f'{data_dir}/images'
 sqlite_path = f'{data_dir}/street_view_cache'
 
 skip_frames = 900
+segmentation_model_dir = './localization/enet-cityscapes'
