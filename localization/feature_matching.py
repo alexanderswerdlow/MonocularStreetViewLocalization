@@ -20,6 +20,7 @@ class FeatureTracker:
         self.IMG_COLOR_LIST = np.array(self.IMG_COLOR_LIST, dtype="uint8")
 
     def segmentImage(self, frame):
+        # https://automaticaddison.com/how-to-detect-objects-using-semantic-segmentation/
         RESIZED_WIDTH = 600
         IMG_NORM_RATIO = 1 / 255.0
         ENET_DIMENSIONS = (1024, 512)
@@ -37,9 +38,6 @@ class FeatureTracker:
             input_img.shape[1], input_img.shape[0]),
                 interpolation=cv2.INTER_NEAREST)
 
-        # enet_neural_network_output = ((0.61 * class_map_mask) + (
-        #     0.39 * input_img)).astype("uint8")
-
         class_legend = np.zeros(((len(self.class_names) * 25) + 25, 300, 3), dtype="uint8")
      
         # Put the class labels and colors on the legend
@@ -51,15 +49,15 @@ class FeatureTracker:
                             tuple(color_information), -1)
 
         filtered_img = np.zeros_like(input_img)
-        filtered_img[class_map_mask <= 5] = input_img[class_map_mask <= 5]
-        # combined_images = np.concatenate((input_img, enet_neural_network_output), axis=0)
-        cv2.imshow('Results', filtered_img)
-        cv2.imshow("Class Legend", class_legend)
-        cv2.waitKey(0)
+        segments_filter = (class_map_mask <= 5) | (class_map_mask == 11)
+        filtered_img[segments_filter] = input_img[segments_filter]
+        
+        return filtered_img
 
-    def extract_features(self, frame, show_keypoints=False):
+    def extract_features(self, frame, segment_image=False, show_keypoints=False):
         self.current_frame = frame
-        self.segmentImage(frame)
+        if segment_image:
+            self.segmentImage(frame)
         frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         frame_gray_eq = cv2.equalizeHist(frame_gray)
         detector = cv2.SIFT_create()
