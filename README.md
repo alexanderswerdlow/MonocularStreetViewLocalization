@@ -8,3 +8,5 @@
 ### To run the program:
 
 python test_localization.py ../data/recordings/2021-10-29T16-22-34/
+
+in config.py, change number of skipped frames 
