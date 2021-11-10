@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 
 from localization.feature_matching import FeatureTracker
+from localization.segmentation import SemanticSegmentation
 from download.query import query
 from download.util import Loc
 from utilities import convert_tuple_to_keypoints, load_pano_features

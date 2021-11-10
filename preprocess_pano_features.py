@@ -4,6 +4,7 @@ import numpy as np
 import pickle
 
 from config import images_dir
+from localization.segmentation import SemanticSegmentation
 from utilities import convert_keypoints_to_tuple
 from download.util import get_existing_panoramas
 from localization.feature_matching import FeatureTracker
