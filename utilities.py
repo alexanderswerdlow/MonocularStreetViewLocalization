@@ -21,5 +21,4 @@ def convert_tuple_to_keypoints(index):
     return kp
 
 def load_pano_features(pano_id):
-    fp = os.path.join(images_dir, f'{pano_id}_features.dat')
     return pickle.load(open(os.path.join(images_dir, f'{pano_id}_features.dat'), 'rb'))

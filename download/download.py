@@ -7,7 +7,7 @@ from download.gpx_interpolate import gpx_interpolate
 from download import streetview
 from PIL import Image
 from download.depth import get_depth_map
-from download.waypoints import westwood_blvd
+from download.waypoints import westwood_blvd, whilshire_blvd
 from config import images_dir, sqlite_path, data_dir
 
 meta_base = 'https://maps.googleapis.com/maps/api/streetview/metadata?'
@@ -20,7 +20,7 @@ fov, img_w, img_h = 90, 640, 640
 # Creates street_view_cache.sqlite if it doesn't already exist, reduces API usage
 requests_cache.install_cache(sqlite_path, cache_control=False, expire_after=-1)
 
-traj = westwood_blvd
+traj = whilshire_blvd
 gpx_data = {'lat': separate_loc_list(traj)[0],
             'lon': separate_loc_list(traj)[1],
             'ele': [0 for x in traj],
@@ -28,7 +28,7 @@ gpx_data = {'lat': separate_loc_list(traj)[0],
             'tzinfo': None}
 
 # If num = 0, res determines spacing of points, deg must be [1, 5]
-interpolated_points = combine_lat_long_lists(*gpx_interpolate(gpx_data, num=0, res=1, deg=1))
+interpolated_points = combine_lat_long_lists(*gpx_interpolate(gpx_data, num=0, res=10, deg=1))
 
 
 def get_meta():
@@ -48,7 +48,7 @@ def get_meta():
             pano = Pano(Loc(meta_response.json()['location']['lat'], meta_response.json()['location']['lng']), meta_response.json()['pano_id'])
             panoramas.add(pano)
             if not meta_response.from_cache:
-                print(f"Meta not from cache! idx:{idx}")
+                print(f"Meta not from cache: f'{lat},{long}'")
     return panoramas
 
 
@@ -72,10 +72,10 @@ def get_unofficial(p):
 def get_official(p):
     _, pano_id, _ = p
     for i in range(8):
-        pic_params = {'key': api_key, 'pano': pano_id, 'size': f'{img_w}x{img_h}', 'fov': fov, 'heading': str(i * 45)}
+        pic_params = {'key': api_key, 'pano': pano_id, 'size': f'{img_w}x{img_h}', 'fov': fov, 'heading': str(i * 45), 'pitch':'30'}
         with requests.get(pic_base, params=pic_params) as pic_response:
             if not pic_response.from_cache:
-                print("Image not from cache!")
+                print(f"Image not from cache: {pano_id}")
 
             if pic_response.ok:
                 with open(f'{images_dir}/{p.get_name()}-{pic_params["heading"]}.jpg', 'wb') as file:
@@ -87,17 +87,20 @@ def plot(panos):
     # gmap3.plot(*separate_loc_list([x.loc for x in existing_panoramas]), 'cornflowerblue', edge_width=2.5)
     gmap3.draw(f"{data_dir}/image_locations.html")
 
-
 existing_panos = get_existing_panoramas()
 potential_panos = get_meta()
 panos_to_get = potential_panos - existing_panos  # Don't redownload images already present
 
 print(f'Potential: {len(potential_panos)}, Existing: {len(existing_panos)}, To Get: {len(panos_to_get)}')
 
-for pano in panos_to_get:
+for idx, pano in enumerate(sorted(panos_to_get)):
     get_official(pano)
     # get_official(pano)
     get_depth_maps(pano)
+    existing_panos.add(pano)
+    if idx % 10 == 0:
+        save_existing_panoramas(existing_panos)
+        print("Saved meta file!")
 
 save_existing_panoramas(existing_panos)
 plot(existing_panos)

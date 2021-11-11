@@ -204,3 +204,4 @@ $RECYCLE.BIN/
 images/
 data/
 config.py
+tmp/

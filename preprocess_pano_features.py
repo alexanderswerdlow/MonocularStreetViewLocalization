@@ -6,15 +6,17 @@ import pickle
 from config import images_dir
 from localization.segmentation import SemanticSegmentation
 from utilities import convert_keypoints_to_tuple
-from download.util import get_existing_panoramas
+from download.util import get_existing_panoramas, get_existing_features
 from localization.feature_matching import FeatureTracker
 
 feature_tracker = FeatureTracker()
 panoramas = get_existing_panoramas()
+existing_features = get_existing_features()
 headings = [0, 45, 90, 135, 180, 225, 270, 315]
 
-i = 1
-for pano in panoramas:
+for i, pano in enumerate(sorted(panoramas)):
+    if pano.pano_id in existing_features:
+        continue
     print(f'Extracting features for panorama ID: {pano.pano_id}, {i}/{len(panoramas)}')
     feature_dict = {}
     for heading in headings:

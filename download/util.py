@@ -55,5 +55,9 @@ def get_existing_panoramas() -> set[Pano]:
 
     return existing_panoramas
 
+def get_existing_features() -> set[str]:
+    mypath = f'{images_dir}/'
+    return set([splitext(f)[0].removesuffix('_features') for f in listdir(mypath) if isfile(join(mypath, f)) and f.endswith('.dat')])
+
 def save_existing_panoramas(panos):
     pickle.dump(panos, open(f"{images_dir}/meta.p", "wb"))

@@ -12,57 +12,64 @@ from localization.segmentation import SemanticSegmentation
 from download.query import query
 from download.util import Loc
 from utilities import convert_tuple_to_keypoints, load_pano_features
-from config import images_dir, skip_frames
+from config import images_dir, start_frame
+from itertools import islice
+
+import copyreg
+import cv2
+
+def _pickle_keypoint(keypoint):
+        return cv2.KeyPoint, (
+            keypoint.pt[0],
+            keypoint.pt[1],
+            keypoint.size,
+            keypoint.angle,
+            keypoint.response,
+            keypoint.octave,
+            keypoint.class_id,
+        )
+
+copyreg.pickle(cv2.KeyPoint().__class__, _pickle_keypoint)
 
 class LocalizationProcess(multiprocessing.Process):
     def __init__(self, data_queue, location_queue):
         multiprocessing.Process.__init__(self)
         self.data_queue = data_queue
         self.location_queue = location_queue
-        self.feature_tracker = FeatureTracker()
         self.previous_localized_position = None
         self.previous_frame_features = None
-
-        self.frame_count = 0
     
     def run(self):
         print("Starting Localization Process")
-        while True:
-            frame, gps = self.data_queue.get() #blocking
-            if frame is None:
+        last_frame = None
+        for feature_tracker, _, loc in iter(self.data_queue.get, None):
+            print('Get frame')
+            if feature_tracker is None:
                 print("Exiting Localization Process")
                 self.data_queue.task_done()
                 break
 
-            self.frame_count += 1
-            if self.frame_count < skip_frames:
-                continue
+            self.localize_two_panoramas(feature_tracker, loc)
+            print('Localized Pano')
+            #if last_frame is not None:
+            #    self.localize_two_frames(last_frame, frame)
+            #last_frame = frame
+            # location = None # replace
+            #self.location_queue.put(location)
+            #self.data_queue.task_done()
+            
 
-            # localize frame
-            self.localize_two_panoramas(frame, gps)
-            location = None # replace
-            self.location_queue.put(location)
-            self.data_queue.task_done()
-
-    def localize_two_panoramas(self, frame, location):
-        frame = cv2.resize(frame, (640, int(640*frame.shape[0]/frame.shape[1])), interpolation=cv2.INTER_AREA)
-        # loc = Loc(location[0], location[1])
-        loc = Loc(34.060644, -118.445362)
-        panoramas = query(loc, n_points=10, distance_upper_bound=100)
-        print([p.pano_id for p in panoramas])
-        self.feature_tracker.extract_features(frame, show_keypoints=True)
-        matches = self.feature_tracker.find_best_pano_images(panoramas)
-        n_matches = 30
-        cv2.imshow('frame', frame)
-        cv2.waitKey(0)
-        for i in range(n_matches):
-            match = matches[i]
+    def localize_two_panoramas(self, feature_tracker: FeatureTracker, loc: Loc):
+        print('Starting localize...Querying')
+        panoramas = query(loc, n_points=10)
+        print('Matching with panoramas...')
+        matches = feature_tracker.find_best_pano_images(panoramas)
+        print(f'Found best pano matches: {len(matches)}')
+        for idx, match in enumerate(islice(matches, 0, 50)):
             print(f'Match with number of features: {match[-1]}')
             reference_img = cv2.imread(os.path.join(images_dir, f'{match[0].pano_id}-{match[1]}.jpg'))
-            reference_img = cv2.drawMatchesKnn(frame, self.feature_tracker.current_frame_features[0], reference_img, match[2], match[-2], None, flags=2)
-            cv2.imshow('FLANN matched features', reference_img)
-            cv2.waitKey(0)
-            
+            reference_img = cv2.drawMatchesKnn(feature_tracker.current_frame, feature_tracker.current_frame_features[0], reference_img, match[2], match[5], None, flags=2)
+            cv2.imwrite(f'tmp/flann-match-{time.time_ns() - 1636597296826147000}.jpg', reference_img)
 
     def localize_panorama_prev_frame(self, frame):
         self.feature_tracker.extract_features(frame)
@@ -76,10 +83,20 @@ class LocalizationProcess(multiprocessing.Process):
                 kp = convert_tuple_to_keypoints(kp)
                 points1, points2, goodMatches = self.feature_tracker.match_features(kp, des, cv2.imread(os.path.join(images_dir, f'{pano.pano_id}-{heading}.jpg')))
                 matches.append([pano, heading, points1, points2, len(goodMatches)])
-                print(len(goodMatches))
+
         matches.sort(key=lambda row: row[-1])
         print(matches)
         self.previous_frame_features = self.feature_tracker.current_frame_features
+
+    def localize_two_frames(self, last_frame, frame):
+        frame = cv2.resize(frame, (640, int(640*frame.shape[0]/frame.shape[1])), interpolation=cv2.INTER_AREA)
+        last_frame = cv2.resize(last_frame, (640, int(640*last_frame.shape[0]/last_frame.shape[1])), interpolation=cv2.INTER_AREA)
+        kp1, des1 = self.feature_tracker.extract_features(last_frame, save_features=True)
+        kp2, des2 = self.feature_tracker.extract_features(frame, save_features=False)
+        points1, points2, goodMatches = self.feature_tracker.match_features(kp2, des2)
+        reference_img = cv2.drawMatchesKnn(last_frame, self.feature_tracker.current_frame_features[0], frame, kp2, goodMatches, None, flags=2)
+        cv2.imshow('FLANN matched features', reference_img)
+        cv2.waitKey(0)
 
 
 class Vehicle:
@@ -104,16 +121,25 @@ class Vehicle:
         # print("Terminated Localization Process")
 
     def stream_log(self, frequency):
-        for index, row in self.log.iterrows():
+        self.video.set(cv2.CAP_PROP_POS_FRAMES, start_frame-1)
+        start_row = self.log.index[(self.log['frame_number'] == start_frame) & (self.log['new_frame'] == 1)].tolist()[0]
+        frame_idx = 0
+        for _, row in self.log.iloc[start_row:].iterrows():
             if self.exit_thread:
                 return
 
-            gps = [row['latitude'], row['longitude']]
             # read other sensor data here
             if row['new_frame'] == 1:
-                ret, frame = self.video.read()
-                self.data_queue.put([frame, gps])
-            time.sleep(1/frequency)
+                _, frame = self.video.read()
+                frame = cv2.resize(frame, (640, int(640*frame.shape[0]/frame.shape[1])), interpolation=cv2.INTER_AREA)
+                feature_tracker = FeatureTracker()
+                feature_tracker.extract_features(frame, save_features=True, show_keypoints=True)
+                self.data_queue.put((feature_tracker, frame_idx, Loc(row['latitude'], row['longitude'])))
+                print(f'Put frame: {frame_idx}')
+                frame_idx += 1
+
+                time.sleep(0.1)
+            
 
     def close(self, sig, frame):
         self.exit_thread = True
