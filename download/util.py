@@ -1,4 +1,3 @@
-
 from typing import NamedTuple
 from os import listdir
 from os.path import isfile, join, splitext
@@ -25,18 +24,18 @@ class Pano(NamedTuple):
         return self.pano_id
 
 
-def separate_loc_list(input_list: list[Loc]) -> tuple[list[float], list[float]]:
+def separate_loc_list(input_list):
     return tuple(zip(*input_list))
 
 
-def combine_lat_long_lists(lat_list: list[float], long_list: list[float]) -> list[Loc]:
+def combine_lat_long_lists(lat_list, long_list):
     if len(lat_list) != len(long_list):
         raise Exception("List lengths are different")
     else:
         return list(map(lambda x, y: Loc(x, y), lat_list, long_list))
 
 
-def get_existing_panoramas() -> set[Pano]:
+def get_existing_panoramas():
     try:
         existing_panoramas = pickle.load(open(f"{images_dir}/meta.p", "rb"))
     except (OSError, IOError) as e:
@@ -55,7 +54,7 @@ def get_existing_panoramas() -> set[Pano]:
 
     return existing_panoramas
 
-def get_existing_features() -> set[str]:
+def get_existing_features():
     mypath = f'{images_dir}/'
     return set([splitext(f)[0].removesuffix('_features') for f in listdir(mypath) if isfile(join(mypath, f)) and f.endswith('.dat')])
 
