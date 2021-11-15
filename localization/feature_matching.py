@@ -53,13 +53,14 @@ class FeatureTracker:
             matches.sort(key=lambda row: row[-1], reverse=True)
             return matches
 
-    def match_to_pano(self, pano):
+    def match_to_pano(self, pano_data):
+        pano, headings = pano_data
         print(f'Loading pano features...{pano.pano_id}')
         features_dict = load_pano_features(pano.pano_id)
         matches = []
-        for heading, features in features_dict.items():
+        for heading in headings:
             print(f'Matching feature: {pano.pano_id},{heading}')
-            kp, des = features
+            kp, des = features_dict[heading]
             kp = convert_tuple_to_keypoints(kp)
             des = np.float32(des)
             points1, points2, goodMatches = self.match_features(kp, des)

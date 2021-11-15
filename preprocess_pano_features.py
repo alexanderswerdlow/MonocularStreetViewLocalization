@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 import pickle
 
-from config import images_dir
+from config import images_dir, headings
 from localization.segmentation import SemanticSegmentation
 from utilities import convert_keypoints_to_tuple
 from download.util import get_existing_panoramas, get_existing_features
@@ -12,7 +12,7 @@ from localization.feature_matching import FeatureTracker
 feature_tracker = FeatureTracker()
 panoramas = get_existing_panoramas()
 existing_features = get_existing_features()
-headings = [0, 45, 90, 135, 180, 225, 270, 315]
+
 
 for i, pano in enumerate(sorted(panoramas)):
     if pano.pano_id in existing_features:
