@@ -6,39 +6,9 @@ from localization.feature_matching import extract_features, match_frame_features
 from localization.segmentation import SemanticSegmentation
 from download.query import query
 from download.util import Loc
-from utilities import convert_tuple_to_keypoints, load_pano_features
 from config import images_dir, start_frame, headings_, recording_dir
 from itertools import islice
 import cv2
-
-
-def localize_panorama_prev_frame(self, frame):
-    self.feature_tracker.extract_features(frame)
-    loc = Loc(self.previous_localized_position[0], self.previous_localized_position[1])
-    panoramas = query(loc, n_points=1, distance_upper_bound=50)
-    matches = []
-    for pano in panoramas:
-        features_dict = load_pano_features(pano.pano_id)
-        for heading, features in features_dict.items():
-            kp, des = features
-            kp = convert_tuple_to_keypoints(kp)
-            points1, points2, goodMatches = self.feature_tracker.match_features(kp, des, cv2.imread(os.path.join(images_dir, f'{pano.pano_id}-{heading}.jpg')))
-            matches.append([pano, heading, points1, points2, len(goodMatches)])
-
-    matches.sort(key=lambda row: row[-1])
-    self.previous_frame_features = self.feature_tracker.current_frame_features
-
-
-def localize_two_frames(self, last_frame, frame):
-    frame = cv2.resize(frame, (640, int(640*frame.shape[0]/frame.shape[1])), interpolation=cv2.INTER_AREA)
-    last_frame = cv2.resize(last_frame, (640, int(640*last_frame.shape[0]/last_frame.shape[1])), interpolation=cv2.INTER_AREA)
-    kp1, des1 = self.feature_tracker.extract_features(last_frame, save_features=True)
-    kp2, des2 = self.feature_tracker.extract_features(frame, save_features=False)
-    points1, points2, goodMatches = self.feature_tracker.match_features(kp2, des2)
-    reference_img = cv2.drawMatchesKnn(last_frame, self.feature_tracker.current_frame_features[0], frame, kp2, goodMatches, None, flags=2)
-    cv2.imshow('FLANN matched features', reference_img)
-    cv2.waitKey(0)
-
 
 class Vehicle:
     def __init__(self):
@@ -86,3 +56,14 @@ class Vehicle:
         loc, heading = Loc(metadata['latitude'], metadata['longitude']), metadata['course']
         panos_to_view = (headings_[headings_ > heading].min(), headings_[headings_ < heading].max())
         return [(p, panos_to_view) for p in query(loc, n_points=10)]
+        
+    # TODO: Integrate into visual odometry or delete
+    def localize_two_frames(self, last_frame, frame):
+        frame = cv2.resize(frame, (640, int(640*frame.shape[0]/frame.shape[1])), interpolation=cv2.INTER_AREA)
+        last_frame = cv2.resize(last_frame, (640, int(640*last_frame.shape[0]/last_frame.shape[1])), interpolation=cv2.INTER_AREA)
+        kp1, des1 = self.feature_tracker.extract_features(last_frame, save_features=True)
+        kp2, des2 = self.feature_tracker.extract_features(frame, save_features=False)
+        points1, points2, goodMatches = self.feature_tracker.match_features(kp2, des2)
+        reference_img = cv2.drawMatchesKnn(last_frame, self.feature_tracker.current_frame_features[0], frame, kp2, goodMatches, None, flags=2)
+        cv2.imshow('FLANN matched features', reference_img)
+        cv2.waitKey(0)
