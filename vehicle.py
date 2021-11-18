@@ -54,7 +54,7 @@ class Vehicle:
         frame = self.segmentation.segmentImage(frame)
         return frame, *extract_features(frame)
 
-    def extract_rectilinear_views(self, panoramas, heading, pitch=10, fov=100, w=1920, h=1440):
+    def extract_rectilinear_views(self, panoramas, heading, pitch=10, fov=100, w=640, h=480):
         pano_data = []
         for pano in panoramas:
             pano_data.append([pano, pano.get_rectilinear_image(heading, pitch, fov, w, h)])
