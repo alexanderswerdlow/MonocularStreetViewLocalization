@@ -1,7 +1,7 @@
 import requests
 import requests_cache
 import cv2
-import concurrent.futures
+import urllib.error
 
 from download.streetview import fetch_panorama, fetch_metadata
 from config import images_dir, sqlite_path
@@ -60,10 +60,13 @@ save_every = 1
 
 for idx, pano in enumerate(panos_to_get):
     print(f'Fetching pano {pano.pano_id}, {idx}/{len(panos_to_get)}')
-    pano = request_panorama(pano)
-    existing_panos.add(pano)
-    if idx % save_every == 0:
-        save_existing_panoramas(existing_panos)
-        print("Saved meta file!")
+    try:
+        pano = request_panorama(pano)
+        existing_panos.add(pano)
+        if idx % save_every == 0:
+            save_existing_panoramas(existing_panos)
+            print("Saved meta file!")
+    except urllib.error.HTTPError as e:
+        print(f'Error getting panorama for pano id: {pano.pano_id}\n{e}')
 
 save_existing_panoramas(existing_panos)
