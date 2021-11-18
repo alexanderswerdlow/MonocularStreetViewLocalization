@@ -1,4 +1,4 @@
-import json
+import zlib
 import requests
 import base64
 import numpy as np
@@ -12,7 +12,7 @@ def parse(b64_string):
     # convert the URL safe format to regular format.
     data = b64_string.replace("-", "+").replace("_", "/")
     data = base64.b64decode(data)  # decode the string
-    # data = zlib.decompress(data)  # decompress the data
+    data = zlib.decompress(data)  # decompress the data
     return np.array([d for d in data])
 
 
@@ -112,13 +112,7 @@ def computeDepthMap(header, indices, planes):
     return {"width": w, "height": h, "depthMap": depthMap}
 
 
-def get_depth_map(pano_id):
-    url = "https://www.google.com/maps/photometa/v1?authuser=0&hl=en&gl=uk&pb=!1m4!1smaps_sv.tactile!11m2!2m1!1b1!2m2!1sen!2suk!3m3!1m2!1e2!2s"
-    url += pano_id
-    url += "!4m57!1e1!1e2!1e3!1e4!1e5!1e6!1e8!1e12!2m1!1e1!4m1!1i48!5m1!1e1!5m1!1e2!6m1!1e1!6m1!1e2!9m36!1m3!1e2!2b1!3e2!1m3!1e2!2b0!3e3!1m3!1e3!2b1!3e2!1m3!1e3!2b0!3e3!1m3!1e8!2b0!3e3!1m3!1e1!2b0!3e3!1m3!1e4!2b0!3e3!1m3!1e10!2b1!3e2!1m3!1e10!2b0!3e3"
-    ret = requests.get(url)
-    s = json.loads(ret.text[4:])[1][0][5][0][5][1][2]
-
+def decompress_raw_depth_map(s):
     depthMapData = parse(s)
     # parse first bytes to describe data
     header = parseHeader(depthMapData)
@@ -126,38 +120,3 @@ def get_depth_map(pano_id):
     data = parsePlanes(header, depthMapData)
     # compute position and values of pixels
     return computeDepthMap(header, data["indices"], data["planes"])
-
-def view_depth_map(depthMap):
-    # process float 1D array into int 2D array with 255 values
-    im = depthMap["depthMap"]
-    im[np.where(im == max(im))[0]] = 255
-    if min(im) < 0:
-        im[np.where(im < 0)[0]] = 0
-    im = im.reshape((depthMap["height"], depthMap["width"])).astype(int)
-    return im
-    # display image
-    #plt.imshow(im)
-    #plt.show()
-
-from PIL import Image
-def depthinfo_to_image(depthinfo, max_d=250.0, pow=0.4, panoid=None, clr_nohit=(255,255,255,0), clr_error=(255,255,255,255) ):
-    w, h = depthinfo['width'], depthinfo['height']
-    if max(depthinfo['depthMap']) > max_d:
-        print("MAXIMUM DEPTH EXCEEDED. {} is greater than {} for panoid {}".format(max(depthinfo['depthMap']),max_d, panoid))
-    
-    
-    # RGBA? TODO
-    img = Image.new( "RGBA", (w,h), clr_error )
-    pxls = img.load( )
-    
-    for y in range(h):
-        for x in range(w):
-            d = depthinfo['depthMap'][y*w + x]
-            if d < 0: pxls[x,y] = clr_nohit
-            elif d > max_d:
-                pass # this pixel will show the error color that the image was initialized with
-            else:
-                c = int( (d/max_d)**(pow) * 255)
-                pxls[x,y] = (c,c,c)
-    
-    return img
