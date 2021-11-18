@@ -31,7 +31,7 @@ class Pano:
         pano = cv2.cvtColor(cv2.imread(self.image_fp), cv2.COLOR_BGR2RGB)
         yaw = float(self.projection['@pano_yaw_deg'])
         rectilinear = backprojection_rectification(pano, yaw, fov, heading, pitch, w, h)
-        return rectilinear
+        return rectilinear.astype(np.uint8)
 
     def get_rectilinear_depth(self, heading, pitch, fov, w=512, h=256):
         yaw = float(self.projection['@pano_yaw_deg'])

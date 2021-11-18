@@ -2,10 +2,8 @@ import cv2
 import numpy as np
 import multiprocessing
 import time
-from utilities import convert_tuple_to_keypoints, load_pano_features
 from functools import partial
 import itertools
-
 
 def extract_features(frame, show_keypoints=False):
     frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -29,25 +27,21 @@ def match_frame_features_to_panoramas_slow(panoramas, frame_data):
         return matches
 
 
-def match_frame_features_to_panoramas(panoramas, frame_data):
-    matches = [match_frame_features_to_single_panorama(p, frame_data) for p in panoramas]
+def match_frame_features_to_panoramas(pano_data, frame_data):
+    matches = [match_frame_features_to_single_panorama(p, frame_data) for p in pano_data]
     matches = [item for sublist in matches for item in sublist]
     matches.sort(key=lambda row: row[-1], reverse=True)
     return matches
 
 
 def match_frame_features_to_single_panorama(pano_data, frame_data):
-    pano, headings = pano_data
-    # print(f'Loading pano features...{pano.pano_id}')
-    features_dict = load_pano_features(pano.pano_id)
+    pano, rectilinear = pano_data
     matches = []
-    for heading in headings:
-        # print(f'Matching feature: {pano.pano_id},{heading}')
-        kp, des = features_dict[heading]
-        kp = convert_tuple_to_keypoints(kp)
-        des = np.float32(des)
-        points1, points2, goodMatches = match_features((None, kp, des), frame_data)
-        matches.append([pano, heading, kp, points1, points2, goodMatches, len(goodMatches)])
+
+    kp, des = extract_features(rectilinear)
+    des = np.float32(des)
+    points1, points2, goodMatches = match_features((None, kp, des), frame_data)
+    matches.append([pano, rectilinear, kp, points1, points2, goodMatches, len(goodMatches)])
 
     return matches
 

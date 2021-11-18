@@ -5,10 +5,11 @@ import pandas as pd
 from localization.feature_matching import extract_features, match_frame_features_to_panoramas
 from localization.segmentation import SemanticSegmentation
 from download.query import query
-from download.util import Loc
 from config import images_dir, start_frame, headings_, recording_dir
 from itertools import islice
 import cv2
+
+FRAME_WIDTH = 640
 
 class Vehicle:
     def __init__(self):
@@ -33,7 +34,8 @@ class Vehicle:
         # Do Visual Odometry
 
     def match_frame_to_panorama(self, frame, metadata):
-        pano_data = self.get_nearby_panoramas(metadata)
+        panoramas = self.get_nearby_panoramas(metadata)
+        pano_data = self.extract_rectilinear_views(panoramas, metadata['course'])
         frame_data = self.process_frame(frame)
         matches = match_frame_features_to_panoramas(pano_data, frame_data)
 
@@ -43,7 +45,7 @@ class Vehicle:
 
         for _, match in enumerate(islice(matches, 0, 50)):
             # print(f'Match with number of features: {match[-1]}')
-            reference_img = cv2.imread(os.path.join(images_dir, f'{match[0].pano_id}-{match[1]}.jpg'))
+            reference_img = cv2.cvtColor(match[1], cv2.COLOR_RGB2BGR)
             reference_img = cv2.drawMatchesKnn(frame_data[0], frame_data[1], reference_img, match[2], match[5], None, flags=2)
             cv2.imwrite(f'tmp/flann-match-{time.time_ns() - 1636597296826147000}.jpg', reference_img)
 
@@ -52,10 +54,15 @@ class Vehicle:
         frame = self.segmentation.segmentImage(frame)
         return frame, *extract_features(frame)
 
+    def extract_rectilinear_views(self, panoramas, heading, pitch=10, fov=100, w=1920, h=1440):
+        pano_data = []
+        for pano in panoramas:
+            pano_data.append([pano, pano.get_rectilinear_image(heading, pitch, fov, w, h)])
+        return pano_data
+
     def get_nearby_panoramas(self, metadata):
-        loc, heading = Loc(metadata['latitude'], metadata['longitude']), metadata['course']
-        panos_to_view = (headings_[headings_ > heading].min(), headings_[headings_ < heading].max())
-        return [(p, panos_to_view) for p in query(loc, n_points=10)]
+        loc = (metadata['latitude'], metadata['longitude'])
+        return query(loc, n_points=10)
         
     # TODO: Integrate into visual odometry or delete
     def localize_two_frames(self, last_frame, frame):
