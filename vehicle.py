@@ -4,12 +4,12 @@ import pandas as pd
 import numpy as np
 
 from localization.feature_matching import extract_features, match_frame_features_to_panoramas
-from localization.segmentation import SemanticSegmentation
+# from localization.segmentation import SemanticSegmentation
 from download.query import query
 from config import images_dir, start_frame, recording_dir
 from itertools import islice
 import cv2
-from localization.visual_odometery import vo
+from localization.visual_odometry import vo
 from utilities import is_cv_cuda
 
 FRAME_WIDTH = 640
@@ -41,14 +41,13 @@ class Vehicle:
 
     def localize_frame(self, frame, metadata):
         # self.match_frame_to_panorama(frame, metadata)
-
+        # VO
         self.vo.process_frame(frame, metadata)
         coord = vo.t.flattern()
         print("x: {}, y: {}, z: {}".format(*[str(pt) for pt in coord]))
         draw_x, draw_y, draw_z = [int(round(x)) for x in coord]
         traj = cv.circle(traj, (draw_x + 400, draw_z + 100), 1, list((0, 255, 0)), 4)
-        cv.imshow('trajectory', traj)
-        #pull master and merge master
+
 
     def match_frame_to_panorama(self, frame, metadata):
         panoramas = self.get_nearby_panoramas(metadata)
