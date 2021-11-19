@@ -8,6 +8,7 @@ from download.query import query
 from config import images_dir, start_frame, headings_, recording_dir
 from itertools import islice
 import cv2
+from localization.visual_odometery import vo
 
 FRAME_WIDTH = 640
 
@@ -17,6 +18,10 @@ class Vehicle:
         self.video = cv2.VideoCapture(os.path.join(recording_dir, 'Frames.m4v'))
         self.video.set(cv2.CAP_PROP_POS_FRAMES, start_frame-1)
         self.segmentation = SemanticSegmentation()
+        self.vo = vo()
+        self.traj = np.zeros(shape=(600, 800, 3)) #visualize trajectory
+
+
 
     def iterate_frames(self):
         start_row = self.log.index[(self.log['frame_number'] == start_frame + 2490) & (self.log['new_frame'] == 1)].tolist()[0]
@@ -30,8 +35,15 @@ class Vehicle:
                 frame_idx += 1
 
     def localize_frame(self, frame, metadata):
-        self.match_frame_to_panorama(frame, metadata)
-        # Do Visual Odometry
+        # self.match_frame_to_panorama(frame, metadata)
+
+        self.vo.process_frame(frame, metadata)
+        coord = vo.t.flattern()
+        print("x: {}, y: {}, z: {}".format(*[str(pt) for pt in coord]))
+        draw_x, draw_y, draw_z = [int(round(x)) for x in coord]
+        traj = cv.circle(traj, (draw_x + 400, draw_z + 100), 1, list((0, 255, 0)), 4)
+        cv.imshow('trajectory', traj)
+        #pull master and merge master
 
     def match_frame_to_panorama(self, frame, metadata):
         panoramas = self.get_nearby_panoramas(metadata)
