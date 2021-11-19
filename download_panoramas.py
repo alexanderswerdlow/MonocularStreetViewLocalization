@@ -40,7 +40,7 @@ def request_metadata(lat, long):
 def request_panorama(pano):
     rgb = fetch_panorama(pano.pano_id, 3)
     fp = f'{images_dir}/{pano.pano_id}.png'
-    cv2.imwrite(fp, cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR))
+    cv2.imwrite(fp, rgb)
     pano.image_fp = fp
     return pano
 
