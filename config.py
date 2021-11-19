@@ -10,7 +10,3 @@ start_frame = 5000
 segmentation_model_dir = './localization/enet-cityscapes'
 
 recording_dir = f'{data_dir}/recordings/2021-11-10T13-16-47'
-
-import numpy as np
-headings = [0, 45, 90, 135, 180, 225, 270, 315]
-headings_ = np.array(headings)

@@ -6,6 +6,7 @@ import base64
 import xmltodict
 import matplotlib.pyplot as plt
 import cv2
+from config import images_dir
 
 
 from .panorama import panoids
@@ -24,11 +25,10 @@ class Pano:
         self.long = long
         self.pano_id = pano_id
         self.depth_map = depth_map
-        self.image_fp = None
         self.projection = projection
     
     def get_rectilinear_image(self, heading, pitch, fov, w=1920, h=1440):
-        pano = cv2.cvtColor(cv2.imread(self.image_fp), cv2.COLOR_BGR2RGB)
+        pano = cv2.cvtColor(cv2.imread(f'{images_dir}/{self.pano_id}.png'), cv2.COLOR_BGR2RGB)
         yaw = float(self.projection['@pano_yaw_deg'])
         rectilinear = backprojection_rectification(pano, yaw, fov, heading, pitch, w, h)
         return rectilinear.astype(np.uint8)
