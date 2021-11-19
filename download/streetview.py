@@ -28,7 +28,7 @@ class Pano:
         self.projection = projection
     
     def get_rectilinear_image(self, heading, pitch, fov, w=1920, h=1440):
-        pano = cv2.imread(f'{images_dir}/{self.pano_id}.png')
+        pano = cv2.imread(f'{images_dir}/{self.pano_id}.jpg')
         yaw = float(self.projection['@pano_yaw_deg'])
         rectilinear = backprojection_rectification(pano, yaw, fov, heading, pitch, w, h)
         return rectilinear.astype(np.uint8)

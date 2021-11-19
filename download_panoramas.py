@@ -39,9 +39,8 @@ def request_metadata(lat, long):
 
 def request_panorama(pano):
     rgb = fetch_panorama(pano.pano_id, 3)
-    fp = f'{images_dir}/{pano.pano_id}.png'
-    cv2.imwrite(fp, rgb)
-    pano.image_fp = fp
+    fp = f'{images_dir}/{pano.pano_id}.jpg'
+    cv2.imwrite(fp, cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR))
     return pano
 
 def get_meta():
@@ -56,7 +55,7 @@ def get_meta():
 existing_panos = get_existing_panoramas()
 potential_panos = get_meta()
 panos_to_get = potential_panos - existing_panos
-save_every = 1
+save_every = 10
 
 for idx, pano in enumerate(panos_to_get):
     print(f'Fetching pano {pano.pano_id}, {idx}/{len(panos_to_get)}')
