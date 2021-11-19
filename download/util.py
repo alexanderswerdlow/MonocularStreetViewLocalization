@@ -1,14 +1,11 @@
 import pickle
-from os import listdir
-from os.path import isfile, join, splitext
-
 from config import images_dir
 
 def separate_loc_list(input_list):
     return tuple(zip(*input_list))
 
 
-def combine_lat_long_lists(lat_list: list[float], long_list: list[float]):
+def combine_lat_long_lists(lat_list, long_list):
     if len(lat_list) != len(long_list):
         raise Exception("List lengths are different")
     else:

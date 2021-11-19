@@ -1,15 +1,12 @@
 import numpy as np
 import requests
 import imageio
-from typing import NamedTuple
-import base64
 import xmltodict
-import matplotlib.pyplot as plt
+from config import images_dir, use_pickled_images
+import pickle
 import cv2
-from config import images_dir
+import os
 
-
-from .panorama import panoids
 from .depth import decompress_raw_depth_map
 from .backprojection import backprojection_rectification
 
@@ -19,6 +16,21 @@ tile_height = 512
 pano_url = 'http://maps.google.com/cbk?output=tile&panoid={0}&zoom={1}&x={2}&y={3}'
 meta_url = 'http://cbk0.google.com/cbk?output=xml&panoid={0}&dm=1'
 
+if use_pickled_images:
+    with open(f'{images_dir}/images.npy', 'rb') as f:
+        images = np.load(f)
+    image_idx = pickle.load(open(f"{images_dir}/image_meta.p", "rb"))
+
+
+def save_pickled_images():
+    image_names = [f[:-4] for f in os.listdir(images_dir) if f.endswith('.png')]
+    images = np.array([cv2.imread(f'{images_dir}/{fname}.png') for fname in image_names])
+    with open(f'{images_dir}/images.npy', 'wb') as f:
+        np.save(f, images)
+    image_idx = {k: idx for idx, k in enumerate(image_names)}
+    pickle.dump(image_idx, open(f"{images_dir}/image_meta.p", "wb"))
+
+
 class Pano:
     def __init__(self, lat, long, pano_id, depth_map, projection):
         self.lat = lat
@@ -26,9 +38,9 @@ class Pano:
         self.pano_id = pano_id
         self.depth_map = depth_map
         self.projection = projection
-    
+
     def get_rectilinear_image(self, heading, pitch, fov, w=1920, h=1440):
-        pano = cv2.imread(f'{images_dir}/{self.pano_id}.png')
+        pano = images[image_idx[self.pano_id]] if use_pickled_images else cv2.imread(f'{images_dir}/{self.pano_id}.png')
         yaw = float(self.projection['@pano_yaw_deg'])
         rectilinear = backprojection_rectification(pano, yaw, fov, heading, pitch, w, h)
         return rectilinear.astype(np.uint8)
@@ -59,6 +71,7 @@ def fetch_panorama(pano_id, zoom):
             panorama[y*tile_height:(y+1)*tile_height, x*tile_width:(x+1)*tile_width] = tile
 
     return panorama
+
 
 def fetch_metadata(pano_id):
     response = requests.get(meta_url.format(pano_id))
