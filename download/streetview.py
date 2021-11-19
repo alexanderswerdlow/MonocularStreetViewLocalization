@@ -23,8 +23,8 @@ if use_pickled_images:
 
 
 def save_pickled_images():
-    image_names = [f[:-4] for f in os.listdir(images_dir) if f.endswith('.png')]
-    images = np.array([cv2.imread(f'{images_dir}/{fname}.png') for fname in image_names])
+    image_names = [f[:-4] for f in os.listdir(images_dir) if f.endswith('.jpg')]
+    images = np.array([cv2.imread(f'{images_dir}/{fname}.jpg') for fname in image_names])
     with open(f'{images_dir}/images.npy', 'wb') as f:
         np.save(f, images)
     image_idx = {k: idx for idx, k in enumerate(image_names)}
@@ -40,7 +40,7 @@ class Pano:
         self.projection = projection
 
     def get_rectilinear_image(self, heading, pitch, fov, w=1920, h=1440):
-        pano = images[image_idx[self.pano_id]] if use_pickled_images else cv2.imread(f'{images_dir}/{self.pano_id}.png')
+        pano = images[image_idx[self.pano_id]] if use_pickled_images else cv2.imread(f'{images_dir}/{self.pano_id}.jpg')
         yaw = float(self.projection['@pano_yaw_deg'])
         rectilinear = backprojection_rectification(pano, yaw, fov, heading, pitch, w, h)
         return rectilinear.astype(np.uint8)
