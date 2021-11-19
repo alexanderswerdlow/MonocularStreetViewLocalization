@@ -5,6 +5,7 @@ else:
     data_dir = '../data' # Put your data directory here
 images_dir = f'{data_dir}/images'
 sqlite_path = f'{data_dir}/street_view_cache'
+openmvg_data = f'{data_dir}/openmvg'
 
 start_frame = 5000
 segmentation_model_dir = './localization/enet-cityscapes'
