@@ -22,3 +22,13 @@ def convert_tuple_to_keypoints(index):
 
 def load_pano_features(pano_id):
     return pickle.load(open(os.path.join(images_dir, f'{pano_id}_features.dat'), 'rb'))
+
+def is_cv_cuda():
+    try:
+        count = cv2.cuda.getCudaEnabledDeviceCount()
+        if count > 0:
+            return True
+        else:
+            return False
+    except:
+        return False
