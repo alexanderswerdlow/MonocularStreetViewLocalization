@@ -3,9 +3,7 @@ import cv2
 import matplotlib.pyplot as plt
  
 
-#TODO : Convert images to PNG
-#TODO : Add keypoint visualization
-#TODO : Add flow lines visualization
+
 
 #Iphone params
 # focal_length_x         1.426957e+03

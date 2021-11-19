@@ -43,7 +43,7 @@ class Vehicle:
         # self.match_frame_to_panorama(frame, metadata)
         # VO
         self.vo.process_frame(frame, metadata)
-        if self.vo.id >= 2:
+        if self.vo.id >= 1:
             coord = self.vo.t.T[0]
             print("x: {}, y: {}, z: {}".format(*[str(pt) for pt in coord]))
             draw_x, draw_y, draw_z = [int(round(x)) for x in coord]
@@ -51,6 +51,11 @@ class Vehicle:
             cv2.imshow('frame', frame)
             cv2.imshow('trajectory', self.traj)
             cv2.waitKey(1)
+            #TODO end point tracking
+            #TODO update triggering
+            #Change features
+            #TODO : Add keypoint visualization
+            #TODO : Add flow lines visualization
 
     def match_frame_to_panorama(self, frame, metadata):
         panoramas = self.get_nearby_panoramas(metadata)
