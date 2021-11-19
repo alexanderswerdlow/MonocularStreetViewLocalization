@@ -1,5 +1,3 @@
-import signal
-
 from vehicle import Vehicle
 import os
 import shutil
