@@ -46,7 +46,7 @@ class Vehicle:
 
         for _, match in enumerate(islice(matches, 0, 50)):
             # print(f'Match with number of features: {match[-1]}')
-            reference_img = cv2.cvtColor(match[1], cv2.COLOR_RGB2BGR)
+            reference_img = match[1]
             reference_img = cv2.drawMatchesKnn(frame_data[0], frame_data[1], reference_img, match[2], match[5], None, flags=2)
             cv2.imwrite(f'tmp/flann-match-{time.time_ns() - 1636597296826147000}.jpg', reference_img)
 
