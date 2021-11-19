@@ -24,6 +24,7 @@ class vo:
 		self.n_features = 0
 		self.min_features = 2000
 		self.id = 0
+		print("Testing VO")
 
 
 	def detect(self, img):
@@ -52,10 +53,12 @@ class vo:
 			E, _ = cv2.findEssentialMat(self.good_new, self.good_old, focal, pp, cv2.RANSAC, 0.999, 1.0, None)
 			_, R, t, _ = cv2.recoverPose(E, self.good_old, self.good_new, self.R.copy(), self.t.copy(), focal, pp, None)
 
-			absolute_scale = self.get_absolute_scale(metadata)
+			absolute_scale = self.get_absolute_scale()
 			if (absolute_scale > 0.1 and abs(t[2][0]) > abs(t[0][0]) and abs(t[2][0]) > abs(t[1][0])):
 				self.t = self.t + absolute_scale*self.R.dot(t)
 				self.R = R.dot(self.R)
+			else:
+				print("not triggered")
 
 		# Save the total number of good features
 		self.n_features = self.good_new.shape[0]

@@ -19,7 +19,7 @@ class Vehicle:
         self.log = pd.read_pickle(os.path.join(recording_dir, 'log.dat'))
         self.video = cv2.VideoCapture(os.path.join(recording_dir, 'Frames.m4v'))
         self.video.set(cv2.CAP_PROP_POS_FRAMES, start_frame-1)
-        self.segmentation = SemanticSegmentation()
+        # self.segmentation = SemanticSegmentation()
         self.vo = vo()
         self.traj = np.zeros(shape=(600, 800, 3)) #visualize trajectory
 
@@ -43,11 +43,14 @@ class Vehicle:
         # self.match_frame_to_panorama(frame, metadata)
         # VO
         self.vo.process_frame(frame, metadata)
-        coord = vo.t.flattern()
-        print("x: {}, y: {}, z: {}".format(*[str(pt) for pt in coord]))
-        draw_x, draw_y, draw_z = [int(round(x)) for x in coord]
-        traj = cv.circle(traj, (draw_x + 400, draw_z + 100), 1, list((0, 255, 0)), 4)
-
+        if self.vo.id >= 2:
+            coord = self.vo.t.T[0]
+            print("x: {}, y: {}, z: {}".format(*[str(pt) for pt in coord]))
+            draw_x, draw_y, draw_z = [int(round(x)) for x in coord]
+            self.traj = cv2.circle(self.traj, (draw_x + 400, draw_z + 600), 1, list((0, 255, 0)), 4)
+            cv2.imshow('frame', frame)
+            cv2.imshow('trajectory', self.traj)
+            cv2.waitKey(1)
 
     def match_frame_to_panorama(self, frame, metadata):
         panoramas = self.get_nearby_panoramas(metadata)
