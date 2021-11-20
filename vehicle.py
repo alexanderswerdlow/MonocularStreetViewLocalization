@@ -48,16 +48,17 @@ class Vehicle:
         # pano_data = self.extract_rectilinear_views(panoramas, metadata)
         # frame_data = self.process_frame(frame)
         
-        # TODO: Uncomment to save matches to file
-        # kvld_matches = get_kvld_matches((self.frame_idx, frame_data[0]), list(map(lambda x: (x[0].pano_id, x[1]), pano_data)))
+        # # TODO: Uncomment to save matches to file
+        # kvld_matches = get_kvld_matches((self.frame_idx, frame_data[0]), list(map(lambda x: (x[0], x[1]), pano_data)))
         # for m in kvld_matches:
-        #     points1, points2, desc = m[3], m[4], pano_data[0][-1]
-        #     self.saved_matches[self.frame_idx].append((points1, points2, desc))
-        # pickle.dump(self.kvld_matches, open(f"{data_dir}/matches.p", "wb"))
+        #     points1, points2, camera_matrix, pano = m[3], m[4], pano_data[0][-1], m[0]
+        #     self.saved_matches[self.frame_idx].append((points1, points2, camera_matrix, pano))
+        # pickle.dump(self.saved_matches, open(f"{data_dir}/matches.p", "wb"))
         
         if self.frame_idx in self.saved_matches:
-            for points1, points2, desc in self.saved_matches[self.frame_idx]:
-                print(find_homography(points1, points2, desc))
+            for points1, points2, camera_matrix, pano in self.saved_matches[self.frame_idx]:
+                print(pano.lat)
+                print(find_homography(points1, points2, camera_matrix))
         else:
             print(f'Frame {self.frame_idx} not saved, exiting')
             exit()
