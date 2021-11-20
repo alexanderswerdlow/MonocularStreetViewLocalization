@@ -17,6 +17,7 @@ class Vehicle:
         self.video = cv2.VideoCapture(os.path.join(recording_dir, 'Frames.m4v'))
         self.video.set(cv2.CAP_PROP_POS_FRAMES, start_frame-1)
         self.segmentation = SemanticSegmentation()
+        self.counter = 0
 
     def iterate_frames(self):
         start_row = self.log.index[(self.log['frame_number'] == start_frame + 2490) & (self.log['new_frame'] == 1)].tolist()[0]
@@ -38,6 +39,16 @@ class Vehicle:
 
     def match_frame_to_panorama(self, frame, metadata):
         panoramas = self.get_nearby_panoramas(metadata)
+
+        # if self.counter % 500 == 0:
+        #     pano_data = self.extract_rectilinear_views(panoramas, metadata['course'], 20)
+        #     cv2.imwrite(f'tmp/{self.counter}-frame.jpg', cv2.equalizeHist(cv2.cvtColor(cv2.resize(frame, (640, int(640*frame.shape[0]/frame.shape[1])), interpolation=cv2.INTER_AREA), cv2.COLOR_RGB2GRAY)))
+            
+        #     for p in pano_data:
+        #         cv2.imwrite(f'tmp/{self.counter}-{p[0].pano_id}.jpg', cv2.equalizeHist(cv2.cvtColor(p[1], cv2.COLOR_BGR2GRAY)))
+
+        # self.counter += 1
+
         pano_data = self.extract_rectilinear_views(panoramas, metadata)
         frame_data = self.process_frame(frame)
         matches = match_frame_features_to_panoramas(pano_data, frame_data)
