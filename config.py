@@ -11,8 +11,10 @@ start_frame = 5000
 segmentation_model_dir = './localization/enet-cityscapes'
 
 recording_dir = f'{data_dir}/recordings/2021-11-10T13-16-47'
-use_pickled_images = False
 
+use_pickled_images = False
+if environ.get('USE_PICKLED_IMAGES') is not None:
+    use_pickled_images = True
 
 FRAME_WIDTH = 1920
 FRAME_HEIGHT = 1440

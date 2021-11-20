@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.lib.npyio import save
 import requests
 import imageio
 import xmltodict
@@ -17,19 +18,14 @@ pano_url = 'http://maps.google.com/cbk?output=tile&panoid={0}&zoom={1}&x={2}&y={
 meta_url = 'http://cbk0.google.com/cbk?output=xml&panoid={0}&dm=1'
 
 if use_pickled_images:
-    with open(f'{images_dir}/images.npy', 'rb') as f:
-        images = np.load(f)
-    image_idx = pickle.load(open(f"{images_dir}/image_meta.p", "rb"))
-
+    images = pickle.load(open(f"{images_dir}/images.p", "rb"))
 
 def save_pickled_images():
-    image_names = [f[:-4] for f in os.listdir(images_dir) if f.endswith('.jpg')]
-    images = np.array([cv2.imread(f'{images_dir}/{fname}.jpg') for fname in image_names])
-    with open(f'{images_dir}/images.npy', 'wb') as f:
-        np.save(f, images)
-    image_idx = {k: idx for idx, k in enumerate(image_names)}
-    pickle.dump(image_idx, open(f"{images_dir}/image_meta.p", "wb"))
+    images = {j:cv2.imread(f'{images_dir}/{j}.jpg') for j in [f[:-4] for f in os.listdir(images_dir) if f.endswith('.jpg')]}
+    pickle.dump(images, open(f"{images_dir}/images.p", "wb"))
 
+def get_image(pano_id):
+    return images[pano_id] if use_pickled_images else cv2.imread(f'{images_dir}/{pano_id}.jpg')
 
 class Pano:
     def __init__(self, lat, long, pano_id, depth_map, projection):
@@ -40,9 +36,8 @@ class Pano:
         self.projection = projection
 
     def get_rectilinear_image(self, heading, pitch, fov, w=1920, h=1440):
-        pano = images[image_idx[self.pano_id]] if use_pickled_images else cv2.imread(f'{images_dir}/{self.pano_id}.jpg')
         yaw = float(self.projection['@pano_yaw_deg'])
-        rectilinear = backprojection_rectification(pano, yaw, fov, heading, pitch, w, h)
+        rectilinear = backprojection_rectification(get_image(self.pano_id), yaw, fov, heading, pitch, w, h)
         return rectilinear.astype(np.uint8)
 
     def get_rectilinear_depth(self, heading, pitch, fov, w=512, h=256):

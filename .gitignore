@@ -205,3 +205,4 @@ images/
 data/
 config.py
 tmp/
+tmp_data/
