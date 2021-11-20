@@ -4,7 +4,7 @@ import time
 import pandas as pd
 import numpy as np
 
-from localization.feature_matching import extract_features, match_frame_features_to_panoramas, find_homography
+from localization.feature_matching import extract_features, match_frame_features_to_panoramas
 from localization.segmentation import SemanticSegmentation
 from download.query import query
 from config import start_frame, recording_dir, scaled_frame_width, scaled_frame_height, SCALE_FACTOR, FRAME_WIDTH, data_dir
@@ -12,6 +12,7 @@ import cv2
 from utilities import is_cv_cuda
 import pickle
 from localization.kvld import get_kvld_matches
+from localization.localization import find_homography, plot, estimate_location_two_panoramas
 
 class Vehicle:
     def __init__(self):
@@ -34,9 +35,18 @@ class Vehicle:
                     frame = cv2.imread('0-frame.jpg')  # TODO: Fix reading frames w/CUDA
                 else:
                     _, frame = self.video.read()
+                row['camera_matrix'] = self.format_camera_matrix(row)
                 self.localize_frame(frame, row)
                 print(f'Frame {self.frame_idx} took: {time.time() - start_time}')
                 self.frame_idx += 1
+
+    def format_camera_matrix(self, metadata):
+        camera_matrix = np.array([
+            [metadata['focal_length_x'], 0, metadata['principal_point_x']],
+            [0, metadata['focal_length_y'], metadata['principal_point_y']],
+            [0, 0, 0]
+        ])/SCALE_FACTOR
+        return camera_matrix
 
     def localize_frame(self, frame, metadata):
         self.match_frame_to_panorama(frame, metadata)
@@ -51,18 +61,27 @@ class Vehicle:
         # # TODO: Uncomment to save matches to file
         # kvld_matches = get_kvld_matches((self.frame_idx, frame_data[0]), list(map(lambda x: (x[0], x[1]), pano_data)))
         # for m in kvld_matches:
-        #     points1, points2, camera_matrix, pano = m[3], m[4], pano_data[0][-1], m[0]
-        #     self.saved_matches[self.frame_idx].append((points1, points2, camera_matrix, pano))
-        # pickle.dump(self.saved_matches, open(f"{data_dir}/matches.p", "wb"))
-        
+        #     points1, points2, desc = m[3], m[4], pano_data[0][-1]
+        #     self.saved_matches[self.frame_idx].append((points1, points2, desc))
+        # pickle.dump(self.kvld_matches, open(f"{data_dir}/matches.p", "wb"))
+        locations = []
+        directions = []
+        n = 2
+        num_matches = []
         if self.frame_idx in self.saved_matches:
             for points1, points2, camera_matrix, pano in self.saved_matches[self.frame_idx]:
-                print(pano.lat)
-                print(find_homography(points1, points2, camera_matrix))
+                num_matches.append(len(points1))
+                locations.append([pano.lat, pano.long])
+                R, t = find_homography(points1, points2, camera_matrix)
+                directions.append([t[0], t[2]])
         else:
             print(f'Frame {self.frame_idx} not saved, exiting')
             exit()
+        i = np.argpartition(num_matches, -n)[-n:]
+        # plot(np.array(locations)[i], np.array(directions)[i])
 
+        localized_point = estimate_location_two_panoramas(np.array(locations)[i], np.array(directions)[i], metadata['course']) 
+        print(localized_point)
         # matches = match_frame_features_to_panoramas(pano_data, frame_data)
 
     def process_frame(self, frame):
@@ -73,14 +92,9 @@ class Vehicle:
     def extract_rectilinear_views(self, panoramas, metadata, pitch=12):
         pano_data = []
         fov = np.rad2deg(np.arctan(FRAME_WIDTH/metadata['focal_length_x']))
-        camera_matrix = np.array([
-            [metadata['focal_length_x'], 0, metadata['principal_point_x']],
-            [0, metadata['focal_length_y'], metadata['principal_point_y']],
-            [0, 0, 0]
-        ])/SCALE_FACTOR
         heading = metadata['course']
         for pano in panoramas:
-            pano_data.append([pano, pano.get_rectilinear_image(heading, pitch, fov, scaled_frame_width, scaled_frame_height), camera_matrix])
+            pano_data.append([pano, pano.get_rectilinear_image(heading, pitch, fov, scaled_frame_width, scaled_frame_height), metadata['camera_matrix']])
         return pano_data
 
     def get_nearby_panoramas(self, metadata):

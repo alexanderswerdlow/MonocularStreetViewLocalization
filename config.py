@@ -16,6 +16,8 @@ use_pickled_images = False
 if environ.get('USE_PICKLED_IMAGES') is not None:
     use_pickled_images = True
 
+api_key = 'AIzaSyBjB2MBFlKlTIAbnG8D_t1oPqfObdR0xAA'  # TODO: Deactive the API key before we make the repo public
+
 FRAME_WIDTH = 1920
 FRAME_HEIGHT = 1440
 SCALE_FACTOR = 3

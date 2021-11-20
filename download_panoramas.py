@@ -7,7 +7,7 @@ from multiprocessing.pool import ThreadPool
 import concurrent.futures
 
 from download.streetview import fetch_panorama, fetch_metadata
-from config import images_dir, sqlite_path
+from config import images_dir, sqlite_path, api_key
 
 from download.util import separate_loc_list, combine_lat_long_lists, get_existing_panoramas, save_existing_panoramas
 from download.waypoints import westwood_blvd, wilshire_blvd
@@ -18,7 +18,6 @@ requests_cache.install_cache(sqlite_path, cache_control=False, expire_after=-1)
 
 meta_base = 'https://maps.googleapis.com/maps/api/streetview/metadata?'
 pic_base = 'https://maps.googleapis.com/maps/api/streetview?'
-api_key = 'AIzaSyBjB2MBFlKlTIAbnG8D_t1oPqfObdR0xAA'  # TODO: Deactive the API key before we make the repo public
 
 traj = wilshire_blvd
 gpx_data = {'lat': separate_loc_list(traj)[0],
