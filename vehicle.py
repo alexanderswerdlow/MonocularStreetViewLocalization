@@ -3,7 +3,7 @@ import time
 import pandas as pd
 import numpy as np
 
-from localization.feature_matching import extract_features, match_frame_features_to_panoramas
+from localization.feature_matching import extract_features, match_frame_features_to_panoramas, find_homography
 from localization.segmentation import SemanticSegmentation
 from download.query import query
 from config import images_dir, start_frame, recording_dir
@@ -28,7 +28,7 @@ class Vehicle:
             if row['new_frame'] == 1:
                 start_time = time.time()
                 if is_cv_cuda():
-                    frame = cv2.imread('frame.jpg') # TODO: Fix reading frames w/CUDA
+                    frame = cv2.imread('0-frame.jpg') # TODO: Fix reading frames w/CUDA
                 else:
                     _, frame = self.video.read()
                 self.localize_frame(frame, row)
@@ -42,25 +42,15 @@ class Vehicle:
     def match_frame_to_panorama(self, frame, metadata):
         panoramas = self.get_nearby_panoramas(metadata)
 
-        # if self.counter % 500 == 0:
-        #     pano_data = self.extract_rectilinear_views(panoramas, metadata['course'], 20)
-        #     cv2.imwrite(f'tmp/{self.counter}-frame.jpg', cv2.equalizeHist(cv2.cvtColor(cv2.resize(frame, (640, int(640*frame.shape[0]/frame.shape[1])), interpolation=cv2.INTER_AREA), cv2.COLOR_RGB2GRAY)))
-            
-        #     for p in pano_data:
-        #         cv2.imwrite(f'tmp/{self.counter}-{p[0].pano_id}.jpg', cv2.equalizeHist(cv2.cvtColor(p[1], cv2.COLOR_BGR2GRAY)))
-
-        # self.counter += 1
+        self.counter += 1
 
         pano_data = self.extract_rectilinear_views(panoramas, metadata['focal_length_x'], metadata['course'])
         frame_data = self.process_frame(frame)
+        from localization.kvld import get_kvld_matches
+        kvld_matches = get_kvld_matches((self.counter, frame_data[0]), list(map(lambda x: (x[0].pano_id, x[1]), pano_data)))
+        print(find_homography(kvld_matches[0][3], kvld_matches[0][4], np.eye(3)))
         matches = match_frame_features_to_panoramas(pano_data, frame_data)
-
-        for _, match in enumerate(islice(matches, 0, 50)):
-            if not is_cv_cuda():
-                # print(f'Match with number of features: {match[-1]}')
-                reference_img = match[1]
-                reference_img = cv2.drawMatchesKnn(frame_data[0], frame_data[1], reference_img, match[2], match[5], None, flags=2)
-                cv2.imwrite(f'tmp/flann-match-{time.time_ns() - 1636597296826147000}.jpg', reference_img)
+        # print(matches)
 
     def process_frame(self, frame):
         frame = cv2.resize(frame, (640, int(640*frame.shape[0]/frame.shape[1])), interpolation=cv2.INTER_AREA)

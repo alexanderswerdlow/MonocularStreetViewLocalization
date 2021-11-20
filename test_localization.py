@@ -4,8 +4,15 @@ import shutil
 
 if __name__ == '__main__':
 
+
     # Delete tmp dir and recreate; Used for misc debug output
     dir = 'tmp'
+    if os.path.exists(dir):
+        shutil.rmtree(dir)
+    os.makedirs(dir)
+
+    # Delete tmp dir and recreate; Used for misc debug output
+    dir = 'tmp_data'
     if os.path.exists(dir):
         shutil.rmtree(dir)
     os.makedirs(dir)
@@ -15,3 +22,4 @@ if __name__ == '__main__':
         test_vehicle.iterate_frames()
     except KeyboardInterrupt:
         print("Caught KeyboardInterrupt")
+

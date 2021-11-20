@@ -32,20 +32,20 @@ def request_metadata(lat, long):
     meta_response = requests.get(meta_base, params=meta_params)
     if meta_response.ok:
         pano = fetch_metadata(meta_response.json()['pano_id'])
-        print(pano.pano_id)
+        print(f'Fetching meta for: {pano.pano_id}')
         return pano
     else:
         return None
 
 def request_panorama(pano):
-    rgb = fetch_panorama(pano.pano_id, 3)
+    rgb = fetch_panorama(pano.pano_id, 5)
     fp = f'{images_dir}/{pano.pano_id}.jpg'
     cv2.imwrite(fp, cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR))
     return pano
 
 def get_meta():
     panoramas = set()
-    print(len(interpolated_points))
+    print(f'Fetching metadata for {len(interpolated_points)} points')
     for (lat, long) in interpolated_points:
         pano = request_metadata(lat, long)
         panoramas.add(pano)
