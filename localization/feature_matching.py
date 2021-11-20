@@ -45,7 +45,7 @@ def match_frame_features_to_panoramas(pano_data, frame_data):
 
 
 def match_frame_features_to_single_panorama(pano_data, frame_data):
-    pano, rectilinear = pano_data
+    pano, rectilinear, cam_mtx = pano_data
     matches = []
 
     if is_cv_cuda():

@@ -1,7 +1,10 @@
+import os
 import requests
 import requests_cache
 import cv2
 import urllib.error
+from multiprocessing.pool import ThreadPool
+import concurrent.futures
 
 from download.streetview import fetch_panorama, fetch_metadata
 from config import images_dir, sqlite_path
@@ -37,8 +40,9 @@ def request_metadata(lat, long):
     else:
         return None
 
-def request_panorama(pano):
-    rgb = fetch_panorama(pano.pano_id, 3)
+def request_panorama(pano, idx, zoom):
+    rgb = fetch_panorama(pano.pano_id, zoom)
+    print(f'Fetched pano {pano.pano_id}, {idx}/{len(panos_to_get)}')
     fp = f'{images_dir}/{pano.pano_id}.jpg'
     cv2.imwrite(fp, cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR))
     return pano
@@ -56,16 +60,21 @@ existing_panos = get_existing_panoramas()
 potential_panos = get_meta()
 panos_to_get = potential_panos - existing_panos
 save_every = 10
+zoom = 5
+
 
 for idx, pano in enumerate(panos_to_get):
-    print(f'Fetching pano {pano.pano_id}, {idx}/{len(panos_to_get)}')
     try:
-        pano = request_panorama(pano)
+        pano = request_panorama(pano, idx, zoom)
         existing_panos.add(pano)
         if idx % save_every == 0:
             save_existing_panoramas(existing_panos)
             print("Saved meta file!")
     except urllib.error.HTTPError as e:
         print(f'Error getting panorama for pano id: {pano.pano_id}\n{e}')
+
+# for pano in panos_to_get:
+#     if os.path.exists(f'{images_dir}/{pano.pano_id}.jpg'):
+#         existing_panos.add(pano)
 
 save_existing_panoramas(existing_panos)
