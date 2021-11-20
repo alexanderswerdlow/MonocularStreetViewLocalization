@@ -6,12 +6,10 @@ import numpy as np
 from localization.feature_matching import extract_features, match_frame_features_to_panoramas, find_homography
 from localization.segmentation import SemanticSegmentation
 from download.query import query
-from config import images_dir, start_frame, recording_dir
+from config import images_dir, start_frame, recording_dir, scaled_frame_width, scaled_frame_height, SCALE_FACTOR, FRAME_WIDTH
 from itertools import islice
 import cv2
 from utilities import is_cv_cuda
-
-FRAME_WIDTH = 640
 
 class Vehicle:
     def __init__(self):
@@ -41,10 +39,7 @@ class Vehicle:
 
     def match_frame_to_panorama(self, frame, metadata):
         panoramas = self.get_nearby_panoramas(metadata)
-
-        self.counter += 1
-
-        pano_data = self.extract_rectilinear_views(panoramas, metadata['focal_length_x'], metadata['course'])
+        pano_data = self.extract_rectilinear_views(panoramas, metadata)
         frame_data = self.process_frame(frame)
         from localization.kvld import get_kvld_matches
         kvld_matches = get_kvld_matches((self.counter, frame_data[0]), list(map(lambda x: (x[0].pano_id, x[1]), pano_data)))
@@ -53,14 +48,21 @@ class Vehicle:
         # print(matches)
 
     def process_frame(self, frame):
-        frame = cv2.resize(frame, (640, int(640*frame.shape[0]/frame.shape[1])), interpolation=cv2.INTER_AREA)
+        frame = cv2.resize(frame, (scaled_frame_width, scaled_frame_height), interpolation=cv2.INTER_AREA)
         # frame = self.segmentation.segmentImage(frame)
         return frame, *extract_features(frame)
 
-    def extract_rectilinear_views(self, panoramas, focal_length, heading, pitch=10, fov=100, w=640, h=480):
+    def extract_rectilinear_views(self, panoramas, metadata, pitch=12):
         pano_data = []
+        fov = np.rad2deg(np.arctan(FRAME_WIDTH/metadata['focal_length_x']))
+        camera_matrix = np.array([
+            [metadata['focal_length_x'], 0, metadata['principal_point_x']],
+            [0, metadata['focal_length_y'], metadata['principal_point_y']],
+            [0, 0, 0]
+        ])/SCALE_FACTOR
+        heading = metadata['course']
         for pano in panoramas:
-            pano_data.append([pano, pano.get_rectilinear_image(heading, pitch, np.rad2deg(np.arctan(1920/focal_length)), w, h)])
+            pano_data.append([pano, pano.get_rectilinear_image(heading, pitch, fov, scaled_frame_width, scaled_frame_height), camera_matrix])
         return pano_data
 
     def get_nearby_panoramas(self, metadata):
@@ -69,8 +71,8 @@ class Vehicle:
         
     # TODO: Integrate into visual odometry or delete
     def localize_two_frames(self, last_frame, frame):
-        frame = cv2.resize(frame, (640, int(640*frame.shape[0]/frame.shape[1])), interpolation=cv2.INTER_AREA)
-        last_frame = cv2.resize(last_frame, (640, int(640*last_frame.shape[0]/last_frame.shape[1])), interpolation=cv2.INTER_AREA)
+        frame = cv2.resize(frame, (scaled_frame_width, scaled_frame_height), interpolation=cv2.INTER_AREA)
+        last_frame = cv2.resize(last_frame, (scaled_frame_width, scaled_frame_height), interpolation=cv2.INTER_AREA)
         kp1, des1 = self.feature_tracker.extract_features(last_frame, save_features=True)
         kp2, des2 = self.feature_tracker.extract_features(frame, save_features=False)
         points1, points2, goodMatches = self.feature_tracker.match_features(kp2, des2)

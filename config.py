@@ -15,3 +15,10 @@ recording_dir = f'{data_dir}/recordings/2021-11-10T13-16-47'
 use_pickled_images = False
 if environ.get('USE_PICKLED_IMAGES') is not None:
     use_pickled_images = True
+
+FRAME_WIDTH = 1920
+FRAME_HEIGHT = 1440
+SCALE_FACTOR = 3
+
+scaled_frame_width = int(FRAME_WIDTH/SCALE_FACTOR)
+scaled_frame_height = int(FRAME_HEIGHT/SCALE_FACTOR)
