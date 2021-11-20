@@ -18,24 +18,13 @@ pano_url = 'http://maps.google.com/cbk?output=tile&panoid={0}&zoom={1}&x={2}&y={
 meta_url = 'http://cbk0.google.com/cbk?output=xml&panoid={0}&dm=1'
 
 if use_pickled_images:
-    # with open(f'{images_dir}/images.npy', 'rb') as f:
-    #     images = np.load(f)
-    # image_idx = pickle.load(open(f"{images_dir}/image_meta.p", "rb"))
     images = pickle.load(open(f"{images_dir}/images.p", "rb"))
 
 def save_pickled_images():
-    # image_names = [f[:-4] for f in os.listdir(images_dir) if f.endswith('.jpg')]
-    # images = np.array([cv2.imread(f'{images_dir}/{fname}.jpg') for fname in image_names])
-    # with open(f'{images_dir}/images.npy', 'wb') as f:
-    #     np.save(f, images)
-    # image_idx = {k: idx for idx, k in enumerate(image_names)}
-    # pickle.dump(image_idx, open(f"{images_dir}/image_meta.p", "wb"))
-
     images = {j:cv2.imread(f'{images_dir}/{j}.jpg') for j in [f[:-4] for f in os.listdir(images_dir) if f.endswith('.jpg')]}
     pickle.dump(images, open(f"{images_dir}/images.p", "wb"))
 
 def get_image(pano_id):
-    # images[image_idx[self.pano_id]] if use_pickled_images else cv2.imread(f'{images_dir}/{self.pano_id}.jpg')
     return images[pano_id] if use_pickled_images else cv2.imread(f'{images_dir}/{pano_id}.jpg')
 
 class Pano:
