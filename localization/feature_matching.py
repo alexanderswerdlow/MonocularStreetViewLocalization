@@ -125,7 +125,6 @@ def match_features_cuda(reference_data, frame_data):
 
 def find_homography(points1, points2, K):
     points1, points2 = np.array(points1), np.array(points2)
-    print(points1.shape, points2.shape)
     E, mask = cv2.findEssentialMat(points1, points2, cameraMatrix=K, method=cv2.RANSAC)
     points, R, t, mask = cv2.recoverPose(E, points1, points2, K, mask=mask)
-    return points, R, t, mask
+    return R, t

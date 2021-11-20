@@ -43,9 +43,9 @@ class Vehicle:
         frame_data = self.process_frame(frame)
         from localization.kvld import get_kvld_matches
         kvld_matches = get_kvld_matches((self.counter, frame_data[0]), list(map(lambda x: (x[0].pano_id, x[1]), pano_data)))
-        print(find_homography(kvld_matches[0][3], kvld_matches[0][4], np.eye(3)))
+        for m in kvld_matches:
+            print(find_homography(m[3], m[4], pano_data[0][-1]))
         matches = match_frame_features_to_panoramas(pano_data, frame_data)
-        # print(matches)
 
     def process_frame(self, frame):
         frame = cv2.resize(frame, (scaled_frame_width, scaled_frame_height), interpolation=cv2.INTER_AREA)
