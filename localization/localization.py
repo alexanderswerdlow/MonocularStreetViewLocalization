@@ -5,35 +5,47 @@ import matplotlib.pyplot as plt
 import gmplot
 from config import data_dir, api_key
 
-def plot(locations, directions, l = 20):
-    pid = np.arange(len(locations))
+from PIL import Image as PImage
+import plotly.graph_objects as go
+from plotly import tools
 
-    origin = locations[0]
-    pano_coords = [np.zeros(2)]
-    dir_coords = [[pano_coords[0] - (directions[0] * l), pano_coords[0] + (directions[0] * l)]]
-    for dir, loc in zip(directions[1:], locations[1:]):
-        dy = geopy.distance.distance(origin, (loc[0], origin[1])).m
-        dx = geopy.distance.distance(origin, (origin[0], loc[1])).m
-        coord = np.array([dx, dy])
-        pano_coords.append(coord)
-        dir_coords.append([coord - (dir * l), coord + (dir * l)])
-    pano_coords = np.array(pano_coords)
-    dir_coords = np.array(dir_coords)
-    plt.scatter(pano_coords[:, 0], pano_coords[:, 1])
-    for xi, yi, pidi in zip(pano_coords[:, 0],pano_coords[:, 1],pid):
-        plt.annotate(str(pidi), xy=(xi,yi))
-    for dir in dir_coords:
-        plt.plot(dir[:, 0], dir[:, 1])
-    plt.show()
+def create_surface(rgb, depth, max_depth=1000, **kwargs):
+    rgb = rgb.swapaxes(0, 1)[:, ::-1]
+    depth = depth.swapaxes(0, 1)[:, ::-1]
+    eight_bit_img = PImage.fromarray(rgb).convert('P', palette='WEB', dither=None)
+    idx_to_color = np.array(eight_bit_img.getpalette()).reshape((-1, 3))
+    colorscale=[[i/255.0, "rgb({}, {}, {})".format(*rgb)] for i, rgb in enumerate(idx_to_color)]
+    depth_map = depth.copy().astype('float')
+    depth_map[depth_map>max_depth] = np.nan
+    return go.Surface(
+        z=depth_map,
+        surfacecolor=np.array(eight_bit_img),
+        cmin=0, 
+        cmax=255,
+        colorscale=colorscale,
+        showscale=False,
+        **kwargs
+    )
+
+def show_rgbd(rgb, depth):
+    fig = go.Figure(
+    data=[create_surface(rgb, 
+                             depth,
+                             contours_z=dict(show=True, project_z=True, highlightcolor="limegreen"),
+                             opacity=1.0
+                            )],
+        layout_title_text="3D Surface"
+    )
+    fig.show()
 
 def find_homography(points1, points2, K_phone):
     K_streetview = K_phone
     K_streetview[:,-1] = 0 # reset principal point
     points1, points2 = np.array(points1), np.array(points2)
-    # points1 = cv2.undistortPoints(points1, K_phone, None).reshape((-1, 2))
-    # points2 = cv2.undistortPoints(points2, K_streetview, None).reshape((-1, 2))
-    E, mask = cv2.findEssentialMat(points1, points2, cameraMatrix=K_phone, method=cv2.RANSAC)
-    points, R, t, mask = cv2.recoverPose(E, points1, points2, K_phone, mask=mask)
+    points1 = cv2.undistortPoints(points1, K_phone, None).reshape((-1, 2))
+    points2 = cv2.undistortPoints(points2, K_streetview, None).reshape((-1, 2))
+    E, mask = cv2.findEssentialMat(points1, points2, cameraMatrix=np.eye(3), method=cv2.RANSAC)
+    points, R, t, mask = cv2.recoverPose(E, points1, points2, np.eye(3), mask=mask)
     return R, -np.squeeze(t)
 
 def estimate_location_two_panoramas(locations, directions, heading):
@@ -52,10 +64,12 @@ def estimate_location_two_panoramas(locations, directions, heading):
     bearing = np.arctan(offset[1]/offset[0]) + heading
 
     localized_coord = geopy.distance.distance(meters=mag).destination(locations[0], bearing=bearing)
-    # gmap3 = gmplot.GoogleMapPlotter(34.060458, -118.437621, 17, apikey=api_key)
-    # print(locations)
-    # gmap3.scatter(locations[:,0], locations[:,1], '#FF0000', size=5, marker=True)
-    # gmap3.scatter([localized_coord.latitude], [localized_coord.longitude], '#0000FF', size=7, marker=True)
-    # gmap3.draw(f"{data_dir}/image_locations.html")
+    gmap3 = gmplot.GoogleMapPlotter(34.060458, -118.437621, 17, apikey=api_key)
+    gmap3.scatter(locations[:,0], locations[:,1], '#FF0000', size=5, marker=True)
+    gmap3.scatter([localized_coord.latitude], [localized_coord.longitude], '#0000FF', size=7, marker=True)
+    gmap3.draw(f"{data_dir}/image_locations.html")
 
     return (localized_coord.latitude, localized_coord.longitude)
+
+def estimate_location_panorama_depth(location, t, heading, depth):
+    pass

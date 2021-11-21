@@ -3,16 +3,17 @@ import os
 import time
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 
 from localization.feature_matching import extract_features, match_frame_features_to_panoramas
 from localization.segmentation import SemanticSegmentation
 from download.query import query
-from config import start_frame, recording_dir, scaled_frame_width, scaled_frame_height, SCALE_FACTOR, FRAME_WIDTH, data_dir
+from config import start_frame, images_dir, recording_dir, scaled_frame_width, scaled_frame_height, SCALE_FACTOR, FRAME_WIDTH, data_dir
 import cv2
 from utilities import is_cv_cuda
 import pickle
 from localization.kvld import get_kvld_matches
-from localization.localization import find_homography, plot, estimate_location_two_panoramas
+from localization.localization import find_homography, show_rgbd, estimate_location_two_panoramas
 
 class Vehicle:
     def __init__(self):
@@ -54,6 +55,7 @@ class Vehicle:
 
     def match_frame_to_panorama(self, frame, metadata):
         # TODO: Uncomment to save matches to file
+        fov = np.rad2deg(np.arctan(FRAME_WIDTH/metadata['focal_length_x']))
         # panoramas = self.get_nearby_panoramas(metadata)
         # pano_data = self.extract_rectilinear_views(panoramas, metadata)
         # frame_data = self.process_frame(frame)
@@ -70,6 +72,9 @@ class Vehicle:
         num_matches = []
         if self.frame_idx in self.saved_matches:
             for points1, points2, camera_matrix, pano in self.saved_matches[self.frame_idx]:
+                # rect = pano.get_rectilinear_depth(metadata['course'], 12, fov)
+                # rgb = cv2.imread(f'{images_dir}/{pano.pano_id}.jpg')
+                # show_rgbd(rgb, rect)
                 num_matches.append(len(points1))
                 locations.append([pano.lat, pano.long])
                 R, t = find_homography(points1, points2, camera_matrix)
@@ -89,9 +94,8 @@ class Vehicle:
         # frame = self.segmentation.segmentImage(frame)
         return frame, *extract_features(frame)
 
-    def extract_rectilinear_views(self, panoramas, metadata, pitch=12):
+    def extract_rectilinear_views(self, panoramas, metadata, fov, pitch=12):
         pano_data = []
-        fov = np.rad2deg(np.arctan(FRAME_WIDTH/metadata['focal_length_x']))
         heading = metadata['course']
         for pano in panoramas:
             pano_data.append([pano, pano.get_rectilinear_image(heading, pitch, fov, scaled_frame_width, scaled_frame_height), metadata['camera_matrix']])

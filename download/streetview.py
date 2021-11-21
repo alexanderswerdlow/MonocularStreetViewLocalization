@@ -35,15 +35,34 @@ class Pano:
         self.depth_map = depth_map
         self.projection = projection
 
-    def get_rectilinear_image(self, heading, pitch, fov, w=1920, h=1440):
+    def get_rectilinear_image(self, heading, pitch, fov, w=640, h=480):
         yaw = float(self.projection['@pano_yaw_deg'])
         rectilinear = backprojection_rectification(get_image(self.pano_id), yaw, fov, heading, pitch, w, h)
         return rectilinear.astype(np.uint8)
 
-    def get_rectilinear_depth(self, heading, pitch, fov, w=512, h=256):
+    def get_rectilinear_depth(self, heading, pitch, fov, w=640, h=480):
         yaw = float(self.projection['@pano_yaw_deg'])
-        rectilinear = backprojection_rectification(self.depth_map, yaw, fov, heading, pitch, w, h)
+        depth_map = cv2.resize(self.depth_map, (1920, 1440), interpolation=cv2.INTER_NEAREST)
+        rectilinear = backprojection_rectification(depth_map, yaw, fov, heading, pitch, w, h)
         return rectilinear
+
+    def get_depth_point_cloud(self, heading, pitch, fov, K, w=640, h=480):
+        rectilinear = self.get_rectilinear_depth(self, heading, pitch, fov, w, h)
+        cx = K[0, 2]
+        cy = K[1, 2]
+        fx = K[0, 0]
+        fy = K[1, 1]
+
+        points = []
+        for u in range(w):
+            for v in range(h):
+                z = rectilinear[v, u]
+                if z != np.nan:
+                    x = z * ((u - cx) / fx)
+                    y = z * ((v - cy) / fy)
+                    points.append([x, y, z])
+
+        return np.array(points), rectilinear
 
     def __hash__(self):
         return hash(self.pano_id)

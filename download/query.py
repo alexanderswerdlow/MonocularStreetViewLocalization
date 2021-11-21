@@ -3,6 +3,7 @@ from scipy import spatial
 from config import data_dir
 
 existing_panoramas = get_existing_panoramas()
+
 pano_locs = [(p.lat, p.long) for p in existing_panoramas]
 loc_to_pano = {(p.lat, p.long): p for p in existing_panoramas}
 tree = spatial.KDTree(pano_locs)

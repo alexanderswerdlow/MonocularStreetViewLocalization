@@ -108,8 +108,8 @@ def computeDepthMap(header, indices, planes):
                 )
                 depthMap[y * w + (w - x - 1)] = t
             else:
-                depthMap[y * w + (w - x - 1)] = 9999999999999999999.0
-    return {"width": w, "height": h, "depthMap": depthMap}
+                depthMap[y * w + (w - x - 1)] = np.nan
+    return depthMap.reshape((h, w))
 
 
 def decompress_raw_depth_map(s):

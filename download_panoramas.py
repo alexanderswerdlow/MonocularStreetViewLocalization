@@ -44,7 +44,6 @@ def request_panorama(pano, idx, zoom):
     print(f'Fetched pano {pano.pano_id}, {idx}/{len(panos_to_get)}')
     fp = f'{images_dir}/{pano.pano_id}.jpg'
     cv2.imwrite(fp, cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR))
-    return pano
 
 def get_meta():
     panoramas = set()
@@ -64,7 +63,8 @@ zoom = 5
 
 for idx, pano in enumerate(panos_to_get):
     try:
-        pano = request_panorama(pano, idx, zoom)
+        if not os.path.exists(f'{images_dir}/{pano.pano_id}.jpg'):
+            request_panorama(pano, idx, zoom)
         existing_panos.add(pano)
         if idx % save_every == 0:
             save_existing_panoramas(existing_panos)
@@ -72,7 +72,7 @@ for idx, pano in enumerate(panos_to_get):
     except urllib.error.HTTPError as e:
         print(f'Error getting panorama for pano id: {pano.pano_id}\n{e}')
 
-# for pano in panos_to_get:
+# for pano in potential_panos:
 #     if os.path.exists(f'{images_dir}/{pano.pano_id}.jpg'):
 #         existing_panos.add(pano)
 
