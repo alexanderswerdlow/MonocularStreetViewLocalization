@@ -19,10 +19,11 @@ meta_url = 'http://cbk0.google.com/cbk?output=xml&panoid={0}&dm=1'
 
 if use_pickled_images:
     images = pickle.load(open(f"{images_dir}/images.p", "rb"))
-
+     
 def save_pickled_images():
     images = {j:cv2.imread(f'{images_dir}/{j}.jpg') for j in [f[:-4] for f in os.listdir(images_dir) if f.endswith('.jpg')]}
     pickle.dump(images, open(f"{images_dir}/images.p", "wb"))
+    exit()
 
 def get_image(pano_id):
     return images[pano_id] if use_pickled_images else cv2.imread(f'{images_dir}/{pano_id}.jpg')
