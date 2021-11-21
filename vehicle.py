@@ -4,7 +4,6 @@ import time
 import pandas as pd
 import numpy as np
 
-from localization.feature_matching import extract_features, match_frame_features_to_panoramas, find_homography
 from localization.segmentation import SemanticSegmentation
 from download.query import query
 from config import start_frame, recording_dir, scaled_frame_width, scaled_frame_height, SCALE_FACTOR, FRAME_WIDTH, data_dir
@@ -65,15 +64,13 @@ class Vehicle:
             pano_dict = {p[0].pano_id: p for p in pano_data}
             kvld_matches = get_kvld_matches((self.frame_idx, frame_data), pano_dict)
             self.saved_matches[self.frame_idx] = (kvld_matches, metadata)
-            pickle.dump(self.saved_matches, open(f"{data_dir}/kvld_matches.p", "wb"))
+        #    pickle.dump(self.saved_matches, open(f"{data_dir}/kvld_matches.p", "wb"))
 
-        # openmvg_matches = get_matches((self.frame_idx, frame_data[0]), pano_dict)
-        # matches = match_frame_features_to_panoramas(pano_data, frame_data)
 
     def process_frame(self, frame):
         frame = cv2.resize(frame, (scaled_frame_width, scaled_frame_height), interpolation=cv2.INTER_AREA)
         # frame = self.segmentation.segmentImage(frame)
-        return frame  # , *extract_features(frame)
+        return frame
 
     def extract_rectilinear_views(self, panoramas, metadata, pitch=12):
         pano_data = []
@@ -91,14 +88,3 @@ class Vehicle:
     def get_nearby_panoramas(self, metadata):
         loc = (metadata['latitude'], metadata['longitude'])
         return query(loc, n_points=10)
-
-    # TODO: Integrate into visual odometry or delete
-    def localize_two_frames(self, last_frame, frame):
-        frame = cv2.resize(frame, (scaled_frame_width, scaled_frame_height), interpolation=cv2.INTER_AREA)
-        last_frame = cv2.resize(last_frame, (scaled_frame_width, scaled_frame_height), interpolation=cv2.INTER_AREA)
-        kp1, des1 = self.feature_tracker.extract_features(last_frame, save_features=True)
-        kp2, des2 = self.feature_tracker.extract_features(frame, save_features=False)
-        points1, points2, goodMatches = self.feature_tracker.match_features(kp2, des2)
-        reference_img = cv2.drawMatchesKnn(last_frame, self.feature_tracker.current_frame_features[0], frame, kp2, goodMatches, None, flags=2)
-        cv2.imshow('FLANN matched features', reference_img)
-        cv2.waitKey(0)
