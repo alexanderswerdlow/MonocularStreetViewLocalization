@@ -18,11 +18,21 @@ pano_url = 'http://maps.google.com/cbk?output=tile&panoid={0}&zoom={1}&x={2}&y={
 meta_url = 'http://cbk0.google.com/cbk?output=xml&panoid={0}&dm=1'
 
 if use_pickled_images:
-    images = pickle.load(open(f"{images_dir}/images.p", "rb"))
-
+     images = pickle.load(open(f"{images_dir}/images.p", "rb"))
+     
+from sys import getsizeof
+import io
 def save_pickled_images():
-    images = {j:cv2.imread(f'{images_dir}/{j}.jpg') for j in [f[:-4] for f in os.listdir(images_dir) if f.endswith('.jpg')]}
-    pickle.dump(images, open(f"{images_dir}/images.p", "wb"))
+    A = cv2.imread('/home/aswerdlow/streetview/data/images/Laxhho1M4QWAFNaaEViMWw.jpg')
+    compressed_array = io.BytesIO()    # np.savez_compressed() requires a file-like object to write to
+    np.savez_compressed(compressed_array, A)
+    print(round(getsizeof(A) / 1024 / 1024,2))
+    print(round(A.nbytes / 1024 / 1024,2))
+    print(round(getsizeof(compressed_array) / 1024 / 1024,2))
+    print(round(compressed_array.nbytes / 1024 / 1024,2))
+    # images = {j:cv2.imread(f'{images_dir}/{j}.jpg') for j in [f[:-4] for f in os.listdir(images_dir) if f.endswith('.jpg')]}
+    # pickle.dump(images, open(f"{images_dir}/images.p", "wb"))
+    exit()
 
 def get_image(pano_id):
     return images[pano_id] if use_pickled_images else cv2.imread(f'{images_dir}/{pano_id}.jpg')

@@ -54,7 +54,7 @@ def match_frame_features_to_single_panorama(pano_data, frame_data):
     else:
         kp, des = extract_features(rectilinear)
         des = np.float32(des)
-        points1, points2, goodMatches = match_features((None, kp, des), frame_data)
+        points1, points2, goodMatches = match_features((rectilinear, kp, des), frame_data)
         matches.append([pano, rectilinear, kp, points1, points2, goodMatches, len(goodMatches)])
 
     return matches
@@ -89,9 +89,7 @@ def match_features(reference_data, frame_data):
 
     if reference_frame is not None:
         img = cv2.drawMatchesKnn(frame_frame, frame_kp, reference_frame, reference_kp, goodMatches, None, flags=2)
-        img = cv2.drawMatchesKnn(cv2.equalizeHist(frame_frame), frame_kp, cv2.equalizeHist(reference_frame), reference_kp, goodMatches, None, flags=2)
-        cv2.imshow('FLANN matched features', img)
-        cv2.waitKey(0)
+        cv2.imwrite(f'tmp-py/keypoints-{(time.time_ns() - 1636597296826147000)}.jpg', img)
 
     return points1, points2, goodMatches
 

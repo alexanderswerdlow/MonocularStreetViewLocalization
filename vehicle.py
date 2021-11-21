@@ -12,18 +12,28 @@ import cv2
 from utilities import is_cv_cuda
 import pickle
 from localization.kvld import get_kvld_matches
+import copyreg
+
+
+def _pickle_dmatch(dmatch):
+    return cv2.DMatch, (dmatch.queryIdx, dmatch.trainIdx, dmatch.imgIdx, dmatch.distance)
+
+
+copyreg.pickle(cv2.DMatch().__class__, _pickle_dmatch)
+
 
 class Vehicle:
     def __init__(self):
         self.log = pd.read_pickle(os.path.join(recording_dir, 'log.dat'))
         self.video = cv2.VideoCapture(os.path.join(recording_dir, 'Frames.m4v'))
-        self.video.set(cv2.CAP_PROP_POS_FRAMES, start_frame-1)
+        self.video.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
         self.segmentation = SemanticSegmentation()
-        self.frame_idx = 0
+        self.frame_idx = start_frame
 
-        self.saved_matches = pickle.load(open(f"{data_dir}/matches.p", "rb"))
-        # TODO: Uncomment to save matches to file
-        # self.saved_matches = defaultdict(list)
+        try:
+            self.saved_matches = pickle.load(open(f"{data_dir}/kvld_matches.p", "rb"))
+        except (OSError, IOError) as e:
+            self.saved_matches = {}
 
     def iterate_frames(self):
         start_row = self.log.index[(self.log['frame_number'] == start_frame + 2490) & (self.log['new_frame'] == 1)].tolist()[0]
@@ -43,32 +53,27 @@ class Vehicle:
         # Do Visual Odometry
 
     def match_frame_to_panorama(self, frame, metadata):
-        # TODO: Uncomment to save matches to file
-        # panoramas = self.get_nearby_panoramas(metadata)
-        # pano_data = self.extract_rectilinear_views(panoramas, metadata)
-        # frame_data = self.process_frame(frame)
-        
-        # # TODO: Uncomment to save matches to file
-        # kvld_matches = get_kvld_matches((self.frame_idx, frame_data[0]), list(map(lambda x: (x[0], x[1]), pano_data)))
-        # for m in kvld_matches:
-        #     points1, points2, camera_matrix, pano = m[3], m[4], pano_data[0][-1], m[0]
-        #     self.saved_matches[self.frame_idx].append((points1, points2, camera_matrix, pano))
-        # pickle.dump(self.saved_matches, open(f"{data_dir}/matches.p", "wb"))
-        
-        if self.frame_idx in self.saved_matches:
-            for points1, points2, camera_matrix, pano in self.saved_matches[self.frame_idx]:
-                print(pano.lat)
-                print(find_homography(points1, points2, camera_matrix))
-        else:
-            print(f'Frame {self.frame_idx} not saved, exiting')
-            exit()
+        # if self.frame_idx in self.saved_matches:
+        #     breakpoint()
 
+        if self.frame_idx % 10 == 0 and self.frame_idx not in self.saved_matches:
+            print(f'Starting on Frame: {self.frame_idx}')
+            panoramas = self.get_nearby_panoramas(metadata)
+            pano_data = self.extract_rectilinear_views(panoramas, metadata)
+            frame_data = self.process_frame(frame)
+
+            pano_dict = {p[0].pano_id: p for p in pano_data}
+            kvld_matches = get_kvld_matches((self.frame_idx, frame_data), pano_dict)
+            self.saved_matches[self.frame_idx] = (kvld_matches, metadata)
+            pickle.dump(self.saved_matches, open(f"{data_dir}/kvld_matches.p", "wb"))
+
+        # openmvg_matches = get_matches((self.frame_idx, frame_data[0]), pano_dict)
         # matches = match_frame_features_to_panoramas(pano_data, frame_data)
 
     def process_frame(self, frame):
         frame = cv2.resize(frame, (scaled_frame_width, scaled_frame_height), interpolation=cv2.INTER_AREA)
         # frame = self.segmentation.segmentImage(frame)
-        return frame, *extract_features(frame)
+        return frame  # , *extract_features(frame)
 
     def extract_rectilinear_views(self, panoramas, metadata, pitch=12):
         pano_data = []
