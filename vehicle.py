@@ -42,20 +42,28 @@ class Vehicle:
     def localize_frame(self, frame, metadata):
         # self.match_frame_to_panorama(frame, metadata)
         # VO
+        print(metadata)
+        # print(metadata['gravity_x'],metadata['gravity_y'],metadata['gravity_z'])
         self.vo.process_frame(frame, metadata)
-        if self.vo.id >= 1:
-            coord = self.vo.t.T[0]
-            print("x: {}, y: {}, z: {}".format(*[str(pt) for pt in coord]))
-            draw_x, draw_y, draw_z = [int(round(x)) for x in coord]
-            self.traj = cv2.circle(self.traj, (draw_x + 400, draw_z + 600), 1, list((0, 255, 0)), 4)
-            cv2.imshow('frame', frame)
-            cv2.imshow('trajectory', self.traj)
-            cv2.waitKey(1)
-            #TODO end point tracking
-            #TODO update triggering
-            #Change features
+        if self.vo.id == 1:
+            self.vo_coord = self.vo.t.T[0]
+            print("x: {}, y: {}, z: {}".format(*[str(pt) for pt in self.vo_coord]))
+            draw_x, draw_y, draw_z = [int(round(x)) for x in self.vo_coord]
+            self.traj = cv2.circle(self.traj, (-draw_x + 400, draw_z + 600), 1, list((0, 255, 0)), 4)
+
+        if self.vo.id >= 2:
+            self.vo_pre = self.vo_coord
+            self.vo_coord = self.vo.t.T[0]
+            print("x: {}, y: {}, z: {}".format(*[str(pt) for pt in self.vo_coord]))
+            draw_x, draw_y, draw_z = [int(round(x)) for x in self.vo_coord]
+            p_draw_x, p_draw_y, p_draw_z = [int(round(x)) for x in self.vo_pre]
+            self.traj = cv2.circle(self.traj, (-p_draw_x + 400, p_draw_z + 600), 1, list((0, 255, 0)), 4)
+            self.traj = cv2.circle(self.traj, (-draw_x + 400, draw_z + 600), 1, list((0, 0, 255)), 4)
+        cv2.imshow('frame', frame)
+        cv2.imshow('trajectory', self.traj)
+        cv2.waitKey(1)
+            #TODO : Change features (SIFT, SURF, ORB)
             #TODO : Add keypoint visualization
-            #TODO : Add flow lines visualization
 
     def match_frame_to_panorama(self, frame, metadata):
         panoramas = self.get_nearby_panoramas(metadata)

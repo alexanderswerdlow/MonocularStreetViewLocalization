@@ -22,7 +22,6 @@ class vo:
 		self.n_features = 0
 		self.min_features = 2000
 		self.id = 0
-		print("Testing VO")
 
 
 	def detect(self, img):
@@ -52,11 +51,13 @@ class vo:
 			_, R, t, _ = cv2.recoverPose(E, self.good_old, self.good_new, self.R.copy(), self.t.copy(), focal, pp, None)
 
 			absolute_scale = self.get_absolute_scale()
-			if (absolute_scale > 0.1 and abs(t[2][0]) > abs(t[0][0]) and abs(t[2][0]) > abs(t[1][0])):
+			# print("abs scale", absolute_scale)
+			if (absolute_scale > 0.10 and abs(t[2][0]) > abs(t[0][0]) and abs(t[2][0]) > abs(t[1][0])):
 				self.t = self.t + absolute_scale*self.R.dot(t)
 				self.R = R.dot(self.R)
 			else:
-				print("not triggered")
+				pass
+				# print("not triggered", absolute_scale, t[2][0], t[1][0], t[0][0], (abs(t[2][0]) > abs(t[0][0])), (abs(t[2][0]) > abs(t[1][0])))
 
 		# Save the total number of good features
 		self.n_features = self.good_new.shape[0]
@@ -89,3 +90,49 @@ class vo:
 			self.current_metadata = metadata
 			self.visual_odometery()
 			self.id += 1
+
+
+
+
+
+# new_frame              1.000000e+00
+# frame_timestamp        1.636579e+09
+# frame_number           7.504000e+03
+# focal_length_x         1.427997e+03
+# focal_length_y         1.427997e+03
+# principal_point_x      9.548727e+02
+# principal_point_y      7.281066e+02
+# motion_timestamp       1.636579e+09
+
+# rotation_rate_x       -1.755000e-03
+# rotation_rate_y       -1.070100e-02
+# rotation_rate_z       -7.440000e-04
+
+# gravity_x             -9.328870e-01
+# gravity_y             -5.571500e-02
+# gravity_z              3.558350e-01
+
+# user_accel_x           2.305100e-02
+# user_accel_y           1.126600e-02
+# user_accel_z          -1.382450e-01
+
+# motion_heading         2.865248e+02
+
+# gps_timestamp          1.636579e+09
+# latitude               3.406030e+01
+# longitude             -1.184380e+02
+# horizontal_accuracy    1.423900e+01
+# altitude               1.047715e+02
+# vertical_accuracy      1.008324e+01
+# floor_level            0.000000e+00
+# course                 7.258802e+01
+# speed                  1.337058e+01
+
+# ar_timestamp           1.636579e+09
+# ar_translation_x      -1.330683e+03
+# ar_translation_y      -8.134804e+00
+# ar_translation_z      -1.776376e+02
+# ar_quaternion_w        3.710970e-01
+# ar_quaternion_x        4.053900e-02
+# ar_quaternion_y        9.117030e-01
+# ar_quaternion_z       -1.715860e-01
