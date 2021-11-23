@@ -12,7 +12,7 @@ import cv2
 from utilities import is_cv_cuda
 import pickle
 from localization.kvld import get_kvld_matches
-from localization.localization import find_homography, show_rgbd, estimate_location_two_panoramas
+from localization.localization import estimate_location, find_homography, find_correspondence_set_intersection, estimate_pose_with_3d_points
 import copyreg
 
 
@@ -62,32 +62,8 @@ class Vehicle:
         self.match_frame_to_panorama(frame, metadata)
         # Do Visual Odometry
 
-    def match_frame_to_panorama(self, frame, metadata):
-        # fov = np.rad2deg(np.arctan(FRAME_WIDTH/metadata['focal_length_x']))
-        # locations = []
-        # directions = []
-        # n = 2
-        # num_matches = []
-        # if self.frame_idx in self.saved_matches:
-        #     for points1, points2, camera_matrix, pano in self.saved_matches[self.frame_idx]:
-        #         # rect = pano.get_rectilinear_depth(metadata['course'], 12, fov)
-        #         # rgb = cv2.imread(f'{images_dir}/{pano.pano_id}.jpg')
-        #         # show_rgbd(rgb, rect)
-        #         num_matches.append(len(points1))
-        #         locations.append([pano.lat, pano.long])
-        #         R, t = find_homography(points1, points2, camera_matrix)
-        #         directions.append([t[0], t[2]])
-        # else:
-        #     print(f'Frame {self.frame_idx} not saved, exiting')
-        #     exit()
-        # i = np.argpartition(num_matches, -n)[-n:]
-        # # plot(np.array(locations)[i], np.array(directions)[i])
-
-        # localized_point = estimate_location_two_panoramas(np.array(locations)[i], np.array(directions)[i], metadata['course']) 
-        # print(localized_point)
-        # # matches = match_frame_features_to_panoramas(pano_data, frame_data)
-        # if self.frame_idx in self.saved_matches:
-        #     breakpoint()
+    def match_frame_to_panorama(self, frame, metadata, n=2):
+        fov = np.rad2deg(np.arctan(FRAME_WIDTH/metadata['focal_length_x']))
 
         if self.frame_idx % 10 == 0 and self.frame_idx not in self.saved_matches:
             print(f'Starting on Frame: {self.frame_idx}')
@@ -98,8 +74,47 @@ class Vehicle:
             pano_dict = {p[0].pano_id: p for p in pano_data}
             kvld_matches = get_kvld_matches((self.frame_idx, frame_data), pano_dict)
             self.saved_matches[self.frame_idx] = (kvld_matches, metadata)
-        #    pickle.dump(self.saved_matches, open(f"{data_dir}/kvld_matches.p", "wb"))
 
+        if self.frame_idx in self.saved_matches:
+            locations = []
+            translations = []
+            num_matches = []
+            saved_match = self.saved_matches[self.frame_idx]
+            kvld_matches = saved_match[0]
+            metadata = saved_match[1]
+            matches = []
+            K = np.zeros((3, 3))
+            for (pano, camera_matrix), points1, points2, m in kvld_matches:
+                K = camera_matrix
+                # points1 = [(int(x), int(y)) for x, y in points1]
+                # points2 = [(int(x), int(y)) for x, y in points2]
+                matches.append([points1, points2])
+                
+                num_matches.append(len(points1))
+                locations.append([pano.lat, pano.long])
+                R, t = find_homography(points1, points2, camera_matrix, cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY), cv2.cvtColor(pano.get_rectilinear_image(metadata['course'], 12, fov), cv2.COLOR_BGR2GRAY))
+                translations.append([t[2], t[0]])
+
+            i = np.argpartition(num_matches, -n)[-n:]
+            matches = np.array(matches)[i]
+            locations = np.array(locations)[i]
+            directions = self.get_angles(np.array(translations)[i], metadata['course'])
+            localized_point = estimate_location(locations, directions)
+            print(localized_point)
+
+            # frame_points, pano_points = find_correspondence_set_intersection(matches)
+            # X = estimate_pose_with_3d_points(frame_points, pano_points, locations, metadata['course'], 12, 2.5, K)
+            
+            # 1. Find 3d coordinates from just the panoramas. Initial guess is just triangulation from 2 panos
+            #    We know 6DOF pose for each pano and image points (all image points for each pano is sorted relative to its
+            #    corresponding frame point), so we can calculate the 3d points (apply a solver)
+            # 2. PnP solver to find frame points pose w.r.t 3d points
+
+            
+    def get_angles(self, d, heading):
+        d /= np.linalg.norm(d, axis=1)[:, np.newaxis]
+        angles = heading - np.rad2deg(np.arctan2(d[:,1], d[:,0]))
+        return angles
 
     def process_frame(self, frame):
         frame = cv2.resize(frame, (scaled_frame_width, scaled_frame_height), interpolation=cv2.INTER_AREA)

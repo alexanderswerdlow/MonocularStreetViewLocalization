@@ -43,7 +43,7 @@ class Pano:
 
     def get_rectilinear_depth(self, heading, pitch, fov, w=640, h=480):
         yaw = float(self.projection['@pano_yaw_deg'])
-        depth_map = cv2.resize(self.depth_map, (1920, 1440), interpolation=cv2.INTER_NEAREST)
+        depth_map = np.flip(cv2.resize(self.depth_map, (1920, 1440), interpolation=cv2.INTER_NEAREST), axis=1)
         rectilinear = backprojection_rectification(depth_map, yaw, fov, heading, pitch, w, h)
         return rectilinear
 
