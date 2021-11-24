@@ -65,15 +65,44 @@ def estimate_pose_with_3d_points_old(frame_points, pano_points, locations, headi
 
     return X
 
+def correspondence_error(p, K, y, x):
+    # computes the bearing and azimuthal angles from camera pose p to feature yj in the camera frame
+    # p is the camera pose
+    # K is the camera intrinsics matrix
+    # y is 3d object point
+    # x is 2d feature image point
+
+    # find z and z_hat and return the distance (dot product?)
+    pass
+
+def triangulation_error(P, K, y, pano_points):
+    total_error = 0
+    for i, p in enumerate(P):
+        image_points = pano_points[i]
+        for image_point in image_points:
+            error = correspondence_error(p, K, y[i], image_point)
+            total_error += error
+
+    return total_error
+
 def estimate_pose_with_3d_points(frame_points, pano_points, locations, heading, pitch, height, K_phone):
     K_streetview = K_phone
     K_streetview[:,-1] = 0 # reset principal point
 
-    A = np.zeros((len(pano_points[0]), len(locations)*2, 4))
+    P = []
 
     for i in range(len(locations)):
         dy = geopy.distance.distance(locations[0], (locations[i, 0], locations[0, 1])).m
         dx = geopy.distance.distance(locations[0], (locations[0, 0], locations[i, 1])).m
+
+        pose = np.zeros((3, 4))
+        rotation = R.from_euler('xyz', [pitch, -heading, 0], degrees=True).as_matrix() # init to just rotation matrix for now
+        translation = np.array([dx, height, dy])
+        pose[:3,:3] = rotation
+        pose[:3,-1] = translation
+        P.append(pose)
+
+        
 
         
     return None
