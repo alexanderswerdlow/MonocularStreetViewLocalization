@@ -7,28 +7,6 @@ from scipy.spatial.transform import Rotation as R
 
 from config import images_dir
 
-def drawlines(img1, img2, lines, pts1, pts2):
-    
-    r, c = img1.shape
-    img1 = cv2.cvtColor(img1, cv2.COLOR_GRAY2BGR)
-    img2 = cv2.cvtColor(img2, cv2.COLOR_GRAY2BGR)
-      
-    for r, pt1, pt2 in zip(lines, pts1, pts2):
-          
-        color = tuple(np.random.randint(0, 255,
-                                        3).tolist())
-          
-        x0, y0 = map(int, [0, -r[2] / r[1] ])
-        x1, y1 = map(int, 
-                     [c, -(r[2] + r[0] * c) / r[1] ])
-          
-        img1 = cv2.line(img1, 
-                        (x0, y0), (x1, y1), color, 1)
-        img1 = cv2.circle(img1,
-                          tuple(pt1), 5, color, -1)
-        img2 = cv2.circle(img2, 
-                          tuple(pt2), 5, color, -1)
-    return img1, img2
 
 def find_correspondence_set_intersection(all_matches):
     intersection_frame_points = set(all_matches[0][0])
@@ -55,31 +33,23 @@ def estimate_pose_with_3d_points(frame_points, pano_points, locations, heading, 
 
     A = np.zeros((len(pano_points[0]), len(locations)*2, 4))
 
+    points = []
+    P = []
+    for i in range(len(locations)):
+        pass
+
+
+    return None
+
+def two_pano_triangulation_pose_estimation(frame_points, pano_points, locations, heading, pitch, height, K_phone):
+    K_streetview = K_phone
+    K_streetview[:,-1] = 0 # reset principal point
+
     for i in range(len(locations)):
         dy = geopy.distance.distance(locations[0], (locations[i, 0], locations[0, 1])).m
         dx = geopy.distance.distance(locations[0], (locations[0, 0], locations[i, 1])).m
 
-        projection = R.from_euler('xyz', [pitch, heading, 0], degrees=True).as_matrix() # init to just rotation matrix for now
-        translation = np.array([dx, dy, height]).reshape((3, 1))
-        projection = np.append(projection, translation, axis=1)
-        # projection = np.matmul(K_streetview, projection)
 
-        points = cv2.undistortPoints(np.array(pano_points[i]).astype(np.float32), K_streetview, None).reshape((-1, 2))
-
-        row2 = projection[2,:]
-        for j, p in enumerate(points):
-            x, y = p
-            A[j, i] = x*row2 - projection[0,:]
-            A[j, i+1] = y*row2 - projection[1,:]
-
-    X = []
-    for l in A:
-        u,d,vt=np.linalg.svd(l)
-        X.append(vt[-1,0:3]/vt[-1,3]) # normalize
-    X = np.array(X)
-
-    ret, rvecs, tvecs = cv2.solvePnP(X, np.array(frame_points).astype(np.float32), K_phone, None)
-    print(tvecs)
 
     return X
 
@@ -90,8 +60,8 @@ def find_homography(points1, points2, K_phone, im1, im2):
     points1_ud = cv2.undistortPoints(points1, K_phone, None).reshape((-1, 2))
     points2_ud = cv2.undistortPoints(points2, K_streetview, None).reshape((-1, 2))
 
-    E, mask = cv2.findEssentialMat(points2_ud, points1_ud, cameraMatrix=np.eye(3), method=cv2.RANSAC)
-    points, R, t, mask = cv2.recoverPose(E, points2_ud, points1_ud, np.eye(3), mask=mask)
+    E, mask = cv2.findEssentialMat(points2, points1, cameraMatrix=K_streetview, method=cv2.RANSAC)
+    points, R, t, mask = cv2.recoverPose(E, points2, points1, K_streetview, mask=mask)
 
     return R, np.squeeze(t)
 
@@ -129,6 +99,3 @@ def estimate_location(locations, angles, l=10):
     # gmap3.draw(f"{data_dir}/image_locations.html")
 
     return (localized_coord.latitude, localized_coord.longitude)
-
-def bundle_adjustment():
-    pass

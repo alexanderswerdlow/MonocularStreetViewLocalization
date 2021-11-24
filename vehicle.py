@@ -62,7 +62,7 @@ class Vehicle:
         self.match_frame_to_panorama(frame, metadata)
         # Do Visual Odometry
 
-    def match_frame_to_panorama(self, frame, metadata, n=2):
+    def match_frame_to_panorama(self, frame, metadata, n=4):
         fov = np.rad2deg(np.arctan(FRAME_WIDTH/metadata['focal_length_x']))
 
         if self.frame_idx % 10 == 0 and self.frame_idx not in self.saved_matches:
