@@ -27,7 +27,7 @@ def find_correspondence_set_intersection(all_matches):
 
     return intersection_frame_points, all_filtered_pano_points
 
-def estimate_pose_with_3d_points(frame_points, pano_points, locations, heading, pitch, height, K_phone):
+def estimate_pose_with_3d_points_old(frame_points, pano_points, locations, heading, pitch, height, K_phone):
     K_streetview = K_phone
     K_streetview[:,-1] = 0 # reset principal point
 
@@ -36,22 +36,48 @@ def estimate_pose_with_3d_points(frame_points, pano_points, locations, heading, 
     points = []
     P = []
     for i in range(len(locations)):
-        pass
+        dy = geopy.distance.distance(locations[0], (locations[i, 0], locations[0, 1])).m
+        dx = geopy.distance.distance(locations[0], (locations[0, 0], locations[i, 1])).m
 
+        projection = np.zeros((3, 4))
+        rotation = R.from_euler('xyz', [pitch, -heading, 0], degrees=True).as_matrix() # init to just rotation matrix for now
+        translation = np.array([dx, height, dy])
+        projection[:3,:3] = rotation
+        projection[:3,-1] = translation
+        P.append(projection)
+        # projection = np.matmul(K_streetview, projection)
 
-    return None
+        norm_points = cv2.undistortPoints(np.array(pano_points[i]).astype(np.float32), K_streetview, None).reshape((-1, 2))
+        points.append(norm_points)
 
-def two_pano_triangulation_pose_estimation(frame_points, pano_points, locations, heading, pitch, height, K_phone):
+    points = np.array(points)
+    X = cv2.triangulatePoints(P[0], P[1], points[0].T, points[1].T)
+    X /= X[3]
+    X1 = P[0][:3] @ X
+    X2 = P[1][:3] @ X
+
+    # print(X.T)
+    # print(X1.T)
+    # print(X2.T)
+
+    ret, rvecs, tvecs = cv2.solvePnP(X1.T, np.array(frame_points).astype(np.float32), K_phone, None)
+    print(tvecs)
+
+    return X
+
+def estimate_pose_with_3d_points(frame_points, pano_points, locations, heading, pitch, height, K_phone):
     K_streetview = K_phone
     K_streetview[:,-1] = 0 # reset principal point
+
+    A = np.zeros((len(pano_points[0]), len(locations)*2, 4))
 
     for i in range(len(locations)):
         dy = geopy.distance.distance(locations[0], (locations[i, 0], locations[0, 1])).m
         dx = geopy.distance.distance(locations[0], (locations[0, 0], locations[i, 1])).m
 
+        
+    return None
 
-
-    return X
 
 def find_homography(points1, points2, K_phone, im1, im2):
     K_streetview = K_phone
