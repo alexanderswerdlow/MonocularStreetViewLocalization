@@ -4,6 +4,8 @@ import geopy.distance
 import matplotlib.pyplot as plt
 import gmplot
 from scipy.spatial.transform import Rotation as R
+from scipy.optimize import least_squares
+from functools import partial
 
 from config import images_dir
 
@@ -81,7 +83,7 @@ def triangulation_error(P, K, y, pano_points):
         image_points = pano_points[i]
         for image_point in image_points:
             error = correspondence_error(p, K, y[i], image_point)
-            total_error += error
+            total_error += error**2
 
     return total_error
 
@@ -102,10 +104,10 @@ def estimate_pose_with_3d_points(frame_points, pano_points, locations, heading, 
         pose[:3,-1] = translation
         P.append(pose)
 
+    objective = partial(triangulation_error, P=P, K=K_streetview, pano_points=pano_points)
+    estimate = least_squares(objective)
         
-
-        
-    return None
+    return estimate
 
 
 def find_homography(points1, points2, K_phone, im1, im2):
