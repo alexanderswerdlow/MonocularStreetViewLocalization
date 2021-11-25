@@ -92,18 +92,18 @@ class Vehicle:
                 
                 num_matches.append(len(points1))
                 locations.append([pano.lat, pano.long])
-                R, t = find_homography(points1, points2, camera_matrix, cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY), cv2.cvtColor(pano.get_rectilinear_image(metadata['course'], 12, fov), cv2.COLOR_BGR2GRAY))
-                translations.append([t[2], t[0]])
+                # R, t = find_homography(points1, points2, camera_matrix, cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY), cv2.cvtColor(pano.get_rectilinear_image(metadata['course'], 12, fov), cv2.COLOR_BGR2GRAY))
+                # translations.append([t[2], t[0]])
 
             i = np.argpartition(num_matches, -n)[-n:]
             matches = np.array(matches)[i]
             locations = np.array(locations)[i]
-            directions = self.get_angles(np.array(translations)[i], metadata['course'])
-            localized_point = estimate_location(locations, directions)
-            print(localized_point)
+            # directions = self.get_angles(np.array(translations)[i], metadata['course'])
+            # localized_point = estimate_location(locations, directions)
+            # print(localized_point)
 
-            # frame_points, pano_points = find_correspondence_set_intersection(matches)
-            # X = estimate_pose_with_3d_points(frame_points, pano_points, locations, metadata['course'], 12, 2.5, K)
+            frame_points, pano_points = find_correspondence_set_intersection(matches)
+            X = estimate_pose_with_3d_points(frame_points, pano_points, locations, metadata['course'], 12, 2.5, K)
             
             # 1. Find 3d coordinates from just the panoramas. Initial guess is just triangulation from 2 panos
             #    We know 6DOF pose for each pano and image points (all image points for each pano is sorted relative to its

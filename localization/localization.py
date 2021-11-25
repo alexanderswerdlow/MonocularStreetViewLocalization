@@ -4,8 +4,10 @@ import geopy.distance
 import matplotlib.pyplot as plt
 import gmplot
 from scipy.spatial.transform import Rotation as R
-from scipy.optimize import least_squares
+from scipy.optimize import least_squares, minimize
 from functools import partial
+
+from config import data_dir, api_key
 
 from config import images_dir
 
@@ -29,44 +31,6 @@ def find_correspondence_set_intersection(all_matches):
 
     return intersection_frame_points, all_filtered_pano_points
 
-def estimate_pose_with_3d_points_old(frame_points, pano_points, locations, heading, pitch, height, K_phone):
-    K_streetview = K_phone
-    K_streetview[:,-1] = 0 # reset principal point
-
-    A = np.zeros((len(pano_points[0]), len(locations)*2, 4))
-
-    points = []
-    P = []
-    for i in range(len(locations)):
-        dy = geopy.distance.distance(locations[0], (locations[i, 0], locations[0, 1])).m
-        dx = geopy.distance.distance(locations[0], (locations[0, 0], locations[i, 1])).m
-
-        projection = np.zeros((3, 4))
-        rotation = R.from_euler('xyz', [pitch, -heading, 0], degrees=True).as_matrix() # init to just rotation matrix for now
-        translation = np.array([dx, height, dy])
-        projection[:3,:3] = rotation
-        projection[:3,-1] = translation
-        P.append(projection)
-        # projection = np.matmul(K_streetview, projection)
-
-        norm_points = cv2.undistortPoints(np.array(pano_points[i]).astype(np.float32), K_streetview, None).reshape((-1, 2))
-        points.append(norm_points)
-
-    points = np.array(points)
-    X = cv2.triangulatePoints(P[0], P[1], points[0].T, points[1].T)
-    X /= X[3]
-    X1 = P[0][:3] @ X
-    X2 = P[1][:3] @ X
-
-    # print(X.T)
-    # print(X1.T)
-    # print(X2.T)
-
-    ret, rvecs, tvecs = cv2.solvePnP(X1.T, np.array(frame_points).astype(np.float32), K_phone, None)
-    print(tvecs)
-
-    return X
-
 def correspondence_error(p, K, y, x):
     # computes the bearing and azimuthal angles from camera pose p to feature yj in the camera frame
     # p is the camera pose
@@ -75,14 +39,15 @@ def correspondence_error(p, K, y, x):
     # x is 2d feature image point
 
     # find z and z_hat and return the distance (dot product?)
-    pass
+    x_hat = np.matmul(np.matmul(p, np.array([*y, 1]).T), K)
+    return np.linalg.norm(x - x_hat[:2])
 
-def triangulation_error(P, K, y, pano_points):
+def triangulation_error(y, P, K, pano_points):
     total_error = 0
     for i, p in enumerate(P):
         image_points = pano_points[i]
-        for image_point in image_points:
-            error = correspondence_error(p, K, y[i], image_point)
+        for j, image_point in enumerate(image_points):
+            error = correspondence_error(p, K, y[j*3:j*3+3], image_point)
             total_error += error**2
 
     return total_error
@@ -105,8 +70,21 @@ def estimate_pose_with_3d_points(frame_points, pano_points, locations, heading, 
         P.append(pose)
 
     objective = partial(triangulation_error, P=P, K=K_streetview, pano_points=pano_points)
-    estimate = least_squares(objective)
-        
+    estimate = least_squares(objective, np.zeros(len(frame_points) * 3))
+    object_points = np.array(estimate.x).reshape((-1, 3))
+
+    ret, rvecs, tvecs = cv2.solvePnP(object_points, np.array(frame_points).astype(np.float32), K_phone, None)
+    
+    offset = np.array(tvecs).reshape(-1)[[0,1]]
+    mag = np.linalg.norm(offset)
+    bearing = np.arctan(offset[0]/offset[1])
+
+    localized_coord = geopy.distance.distance(meters=mag).destination(locations[0], bearing=np.rad2deg(bearing))
+    gmap3 = gmplot.GoogleMapPlotter(34.060458, -118.437621, 17, apikey=api_key)
+    gmap3.scatter(locations[:,0], locations[:,1], '#FF0000', size=5, marker=True)
+    gmap3.scatter([localized_coord.latitude], [localized_coord.longitude], '#0000FF', size=7, marker=True)
+    gmap3.draw(f"{data_dir}/image_locations.html")
+
     return estimate
 
 
