@@ -1,3 +1,4 @@
+from re import T
 import cv2
 import numpy as np
 import geopy.distance
@@ -39,8 +40,22 @@ def correspondence_error(p, K, y, x):
     # x is 2d feature image point
 
     # find z and z_hat and return the distance (dot product?)
+
     x_hat = np.matmul(np.matmul(p, np.array([*y, 1]).T), K)
-    return np.linalg.norm(x - x_hat[:2])
+
+    dx_hat,dy_hat,dz_hat = np.linalg.solve(K, [*x_hat[:2],1])
+    dx,dy,dz = np.linalg.solve(K, [*x,1])
+
+    theta_hat = np.arccos(dz_hat / (np.sqrt(dx_hat**2 + dy_hat**2 + dz_hat**2)))
+    theta = np.arccos(dz / (np.sqrt(dx**2 + dy**2 + dz**2)))
+
+    phi_hat = np.arctan(dy_hat / dz_hat)
+    phi = np.arctan(dy / dz)
+
+    z_hat = np.array([theta_hat, phi_hat])
+    z = np.array([theta, phi])
+
+    return np.linalg.norm(z - z_hat)
 
 def triangulation_error(y, P, K, pano_points):
     total_error = 0
@@ -55,6 +70,7 @@ def triangulation_error(y, P, K, pano_points):
 def estimate_pose_with_3d_points(frame_points, pano_points, locations, heading, pitch, height, K_phone):
     K_streetview = K_phone
     K_streetview[:,-1] = 0 # reset principal point
+    K_streetview[-1,-1] = 1
 
     P = []
 
