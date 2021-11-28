@@ -10,7 +10,7 @@ from download.streetview import fetch_panorama, fetch_metadata
 from config import images_dir, sqlite_path, api_key
 
 from download.util import separate_loc_list, combine_lat_long_lists, get_existing_panoramas, save_existing_panoramas
-from download.waypoints import westwood_blvd, wilshire_blvd
+from download.waypoints import new_whilshire, wilshire_blvd, westwood_blvd
 from download.gpx_interpolate import gpx_interpolate
 
 # Creates street_view_cache.sqlite if it doesn't already exist, reduces API usage
@@ -19,7 +19,7 @@ requests_cache.install_cache(sqlite_path, cache_control=False, expire_after=-1)
 meta_base = 'https://maps.googleapis.com/maps/api/streetview/metadata?'
 pic_base = 'https://maps.googleapis.com/maps/api/streetview?'
 
-traj = wilshire_blvd
+traj = westwood_blvd
 gpx_data = {'lat': separate_loc_list(traj)[0],
             'lon': separate_loc_list(traj)[1],
             'ele': [0 for x in traj],
@@ -57,20 +57,33 @@ def get_meta():
 existing_panos = get_existing_panoramas()
 potential_panos = get_meta()
 panos_to_get = potential_panos - existing_panos
-save_every = 10
+save_every = 1
 zoom = 5
 
-
-for idx, pano in enumerate(panos_to_get):
+def down(pano):
     try:
         if not os.path.exists(f'{images_dir}/{pano.pano_id}.jpg'):
-            request_panorama(pano, idx, zoom)
-        existing_panos.add(pano)
-        if idx % save_every == 0:
-            save_existing_panoramas(existing_panos)
-            print("Saved meta file!")
+            request_panorama(pano, 1, zoom)
+            print('done')
+        # # existing_panos.add(pano)
+        # if idx % save_every == 0:
+        #     save_existing_panoramas(existing_panos)
+        #     print("Saved meta file!")
     except urllib.error.HTTPError as e:
         print(f'Error getting panorama for pano id: {pano.pano_id}\n{e}')
+
+from multiprocessing import Pool
+print(f"getting: {len(panos_to_get)}")
+
+for p in panos_to_get:
+    existing_panos.add(p)
+
+save_existing_panoramas(existing_panos)
+print("starting")
+
+with Pool(10) as p:
+    print(p.map(down, panos_to_get))
+
 
 # for pano in potential_panos:
 #     if os.path.exists(f'{images_dir}/{pano.pano_id}.jpg'):

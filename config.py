@@ -7,7 +7,7 @@ images_dir = f'{data_dir}/images'
 sqlite_path = f'{data_dir}/street_view_cache'
 openmvg_data = f'{data_dir}/openmvg'
 
-start_frame = 5000
+start_frame = 1000
 segmentation_model_dir = './localization/enet-cityscapes'
 
 recording_dir = f'{data_dir}/recordings/2021-11-10T13-16-47'

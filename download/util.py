@@ -17,6 +17,16 @@ def get_existing_panoramas():
     except (OSError, IOError) as e:
         existing_panoramas = set()
 
+    to_rem = []
+    for p in existing_panoramas:
+        from pathlib import Path
+        my_file = Path(f'{images_dir}/{p.pano_id}.jpg')
+        if not my_file.is_file():
+            to_rem.append(p)
+
+    for p in to_rem:
+        existing_panoramas.remove(p)
+
     return existing_panoramas
 
 def save_existing_panoramas(panos):

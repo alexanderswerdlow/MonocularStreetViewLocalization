@@ -12,7 +12,7 @@ import cv2
 from utilities import is_cv_cuda
 import pickle
 from localization.kvld import get_kvld_matches
-from localization.localization import estimate_location, find_homography, find_correspondence_set_intersection, estimate_pose_with_3d_points
+from localization.localization import estimate_location, find_homography, find_correspondence_set_intersection, estimate_pose_with_3d_points, estimate_pose_with_3d_points_g2o
 import copyreg
 
 
@@ -30,6 +30,7 @@ class Vehicle:
         self.video.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
         self.segmentation = SemanticSegmentation()
         self.frame_idx = start_frame
+        self.measurements = []
 
         try:
             self.saved_matches = pickle.load(open(f"{data_dir}/kvld_matches.p", "rb"))
@@ -47,7 +48,7 @@ class Vehicle:
                     _, frame = self.video.read()
                 row['camera_matrix'] = self.format_camera_matrix(row)
                 self.localize_frame(frame, row)
-                print(f'Frame {self.frame_idx} took: {time.time() - start_time}')
+                # print(f'Frame {self.frame_idx} took: {time.time() - start_time}')
                 self.frame_idx += 1
 
     def format_camera_matrix(self, metadata):
@@ -59,25 +60,43 @@ class Vehicle:
         return camera_matrix
 
     def localize_frame(self, frame, metadata):
+
+        # self.measurements = pickle.load(open(f"save.p", "rb"))
+
+        # from config import api_key
+        # from pykalman import KalmanFilter
+        # from localization.localization import CustomGoogleMapPlotter
+        # kf = KalmanFilter(initial_state_mean=self.measurements[0], n_dim_obs=2)
+        # measurements_ =   np.asarray(self.measurements)
+        # meas = kf.em(measurements_, n_iter=50).smooth(measurements_)[0]
+        # gmap3_g2o = CustomGoogleMapPlotter(34.060458, -118.437621, 17, apikey=api_key)
+        # gmap3_g2o.scatter(meas[:, 0], meas[:, 1], '#0000FF', size=7, marker=True)
+        # gmap3_g2o.draw(f"tmp/image_locations.html")
+        # exit()
+                
         self.match_frame_to_panorama(frame, metadata)
         # Do Visual Odometry
 
     def match_frame_to_panorama(self, frame, metadata, n=4):
         fov = np.rad2deg(np.arctan(FRAME_WIDTH/metadata['focal_length_x']))
 
-        if self.frame_idx % 10 == 0 and self.frame_idx not in self.saved_matches:
-            print(f'Starting on Frame: {self.frame_idx}')
-            panoramas = self.get_nearby_panoramas(metadata)
-            pano_data = self.extract_rectilinear_views(panoramas, metadata)
-            frame_data = self.process_frame(frame)
+        # if self.frame_idx % 10 == 0 and self.frame_idx not in self.saved_matches:
+        #     print(f'Starting on Frame: {self.frame_idx}')
+        #     panoramas = self.get_nearby_panoramas(metadata)
+        #     pano_data = self.extract_rectilinear_views(panoramas, metadata, fov)
+        #     frame_data = self.process_frame(frame)
 
-            pano_dict = {p[0].pano_id: p for p in pano_data}
-            kvld_matches = get_kvld_matches((self.frame_idx, frame_data), pano_dict)
-            self.saved_matches[self.frame_idx] = (kvld_matches, metadata)
+        #     pano_dict = {p[0].pano_id: p for p in pano_data}
+        #     kvld_matches = get_kvld_matches((self.frame_idx, frame_data), pano_dict)
+        # print(kvld_matches)
+        #     self.saved_matches[self.frame_idx] = (kvld_matches, metadata)
+        #     pickle.dump(self.saved_matches, open("westwood_matches.p", "wb"))
+
+        # return None
 
         if self.frame_idx in self.saved_matches:
+            print(f"Starting Frame {self.frame_idx}")
             locations = []
-            translations = []
             num_matches = []
             saved_match = self.saved_matches[self.frame_idx]
             kvld_matches = saved_match[0]
@@ -92,19 +111,41 @@ class Vehicle:
                 
                 num_matches.append(len(points1))
                 locations.append([pano.lat, pano.long])
-                # R, t = find_homography(points1, points2, camera_matrix, cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY), cv2.cvtColor(pano.get_rectilinear_image(metadata['course'], 12, fov), cv2.COLOR_BGR2GRAY))
+                # breakpoint()
+                # R, t, points = find_homography(points1, points2, camera_matrix, cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY), cv2.cvtColor(pano.get_rectilinear_image(metadata['course'], 12, fov), cv2.COLOR_BGR2GRAY))
+                # breakpoint()
                 # translations.append([t[2], t[0]])
 
             i = np.argpartition(num_matches, -n)[-n:]
             matches = np.array(matches)[i]
             locations = np.array(locations)[i]
+            # breakpoint()
+            
+            
             # directions = self.get_angles(np.array(translations)[i], metadata['course'])
             # localized_point = estimate_location(locations, directions)
             # print(localized_point)
-
             frame_points, pano_points = find_correspondence_set_intersection(matches)
-            X = estimate_pose_with_3d_points(frame_points, pano_points, locations, metadata['course'], 12, 2.5, K)
-            
+            if len(frame_points) < 6:
+                return None
+            pts3D = find_homography(pano_points[0], pano_points[1], K, None, None)
+            # estimate_pose_with_3d_points(frame_points, pano_points, locations, metadata['course'], 12, 2.5, K)
+            ret = estimate_pose_with_3d_points_g2o(frame_points, pano_points, locations, metadata['course'], 12, 2.5, K, metadata, pts3D)
+            if ret is not None:
+                self.measurements.append([ret[0], ret[1]])
+
+        #if self.frame_idx % 100 == 0 and len(self.measurements) > 2:
+        #     # from config import api_key
+        #     # from pykalman import KalmanFilter
+        #     # from localization.localization import CustomGoogleMapPlotter
+        #     # kf = KalmanFilter(initial_state_mean=self.measurements[0], n_dim_obs=2)
+        #     # measurements_ =   np.asarray(self.measurements)
+        #     # meas = kf.em(measurements_, n_iter=2).smooth(measurements_)[0]
+        #     # gmap3_g2o = CustomGoogleMapPlotter(34.060458, -118.437621, 17, apikey=api_key)
+        #     # gmap3_g2o.scatter(meas[:, 0], meas[:, 1], '#0000FF', size=7, marker=True)
+        #     # gmap3_g2o.draw(f"tmp/image_locations.html")
+        #    pickle.dump(self.measurements, open("save.p", "wb"))
+                    
             # 1. Find 3d coordinates from just the panoramas. Initial guess is just triangulation from 2 panos
             #    We know 6DOF pose for each pano and image points (all image points for each pano is sorted relative to its
             #    corresponding frame point), so we can calculate the 3d points (apply a solver)
