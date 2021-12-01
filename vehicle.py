@@ -130,7 +130,7 @@ class Vehicle:
                 return None
             pts3D = find_homography(pano_points[0], pano_points[1], K, None, None)
             # estimate_pose_with_3d_points(frame_points, pano_points, locations, metadata['course'], 12, 2.5, K)
-            ret = estimate_pose_with_3d_points_g2o(frame_points, pano_points, locations, metadata['course'], 12, 2.5, K, metadata, pts3D)
+            ret = estimate_pose_with_3d_points(frame_points, pano_points, locations, metadata['course'], 12, 2.5, K, metadata, pts3D)
             if ret is not None:
                 self.measurements.append([ret[0], ret[1]])
 

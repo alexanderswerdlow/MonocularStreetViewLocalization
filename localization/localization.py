@@ -101,7 +101,6 @@ def correspondence_error(p, K, y, x):
     z = np.array([theta, phi])
 
     return np.linalg.norm(z - z_hat)
-    # return err.T @ np.diag([1, 1]) @ err
 
 def tukey_biweight(x):
     t = 454669050
@@ -111,16 +110,16 @@ def tukey_biweight(x):
         return t**2 / 6
 
 def triangulation_error(y, P, K, pano_points):
-    # from localization.biweight import biweight
     total_error = 0
     for i, p in enumerate(P):
         image_points = pano_points[i]
-        for j, image_point in enumerate(image_points.values()):
-            total_error += correspondence_error(p, K, y[j*3:j*3+3], image_point)**2 # tukey_biweight()
+        for j, image_point in enumerate(image_points):
+            import scipy
+            total_error += correspondence_error(p, K, y[j*3:j*3+3], image_point)**2, np.sqrt(5.99)
 
     return total_error
 
-def estimate_pose_with_3d_points(frame_points, pano_points, locations, heading, pitch, height, K_phone):
+def estimate_pose_with_3d_points(frame_points, pano_points, locations, heading, pitch, height, K_phone, aa, aaa):
     K_streetview = K_phone
     K_streetview[:,-1] = 0 # reset principal point
     K_streetview[-1,-1] = 1
