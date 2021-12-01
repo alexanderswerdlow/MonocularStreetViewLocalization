@@ -53,8 +53,13 @@ def triangulation_error(y, P, K, pano_points):
     return total_error
 
 def estimate_pose_with_3d_points(frame_points, pano_points, locations, heading, pitch, height, K_phone):
+    # 1. Find 3d coordinates from just the panoramas. Initial guess is just triangulation from 2 panos
+    #    We know 6DOF pose for each pano and image points (all image points for each pano is sorted relative to its
+    #    corresponding frame point), so we can calculate the 3d points (apply a solver)
+    # 2. PnP solver to find frame points pose w.r.t 3d points
     K_streetview = K_phone
     K_streetview[:,-1] = 0 # reset principal point
+    K_streetview[-1,-1] = 1 
 
     P = []
 
@@ -75,6 +80,17 @@ def estimate_pose_with_3d_points(frame_points, pano_points, locations, heading, 
 
     ret, rvecs, tvecs = cv2.solvePnP(object_points, np.array(frame_points).astype(np.float32), K_phone, None)
     
+    total_error = 0
+    total_error_sq = 0
+    for i in range(len(object_points)):
+        reprojected_points, _ = cv2.projectPoints(object_points[i], rvecs[i], tvecs[i], K_phone, None)
+        error = cv2.norm(frame_points[i], reprojected_points, cv2.NORM_L2)/len(reprojected_points)
+        total_error += error
+        total_error_sq += error * error
+
+    mean_error = total_error/len(object_points)
+    rms_error = np.sqrt(total_error_sq/len(object_points))
+
     offset = np.array(tvecs).reshape(-1)[[0,1]]
     mag = np.linalg.norm(offset)
     bearing = np.arctan(offset[0]/offset[1])
@@ -85,8 +101,9 @@ def estimate_pose_with_3d_points(frame_points, pano_points, locations, heading, 
     gmap3.scatter([localized_coord.latitude], [localized_coord.longitude], '#0000FF', size=7, marker=True)
     gmap3.draw(f"{data_dir}/image_locations.html")
 
-    return estimate
+    return estimate, rms_error
 
+def find_reprojection_error(locations, pano_points, object_points, vehicle_pose)
 
 def find_homography(points1, points2, K_phone, im1, im2):
     K_streetview = K_phone

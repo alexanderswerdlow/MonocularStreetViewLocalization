@@ -103,12 +103,8 @@ class Vehicle:
             # print(localized_point)
 
             frame_points, pano_points = find_correspondence_set_intersection(matches)
-            X = estimate_pose_with_3d_points(frame_points, pano_points, locations, metadata['course'], 12, 2.5, K)
+            X, reprojection_error = estimate_pose_with_3d_points(frame_points, pano_points, locations, metadata['course'], 12, 2.5, K)
             
-            # 1. Find 3d coordinates from just the panoramas. Initial guess is just triangulation from 2 panos
-            #    We know 6DOF pose for each pano and image points (all image points for each pano is sorted relative to its
-            #    corresponding frame point), so we can calculate the 3d points (apply a solver)
-            # 2. PnP solver to find frame points pose w.r.t 3d points
 
             
     def get_angles(self, d, heading):
