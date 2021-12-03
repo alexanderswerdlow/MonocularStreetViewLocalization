@@ -106,7 +106,7 @@ class Vehicle:
             # print(localized_point)
 
             frame_points, pano_points = find_correspondence_set_intersection(matches)
-            self.plot_pano_features_subset(panos, matches, pano_points)
+            # self.plot_pano_features_subset(panos, matches, pano_points)
             X, reprojection_error = estimate_pose_with_3d_points(frame_points, pano_points, locations, metadata['course'], 12, 2.5, K)
             
     def plot_pano_features_subset(self, panos, matches, pano_points):
