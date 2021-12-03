@@ -79,17 +79,9 @@ def estimate_pose_with_3d_points(frame_points, pano_points, locations, heading, 
     object_points = np.array(estimate.x).reshape((-1, 3))
 
     ret, rvecs, tvecs = cv2.solvePnP(object_points, np.array(frame_points).astype(np.float32), K_phone, None)
-    
-    total_error = 0
-    total_error_sq = 0
-    for i in range(len(object_points)):
-        reprojected_points, _ = cv2.projectPoints(object_points[i], rvecs[i], tvecs[i], K_phone, None)
-        error = cv2.norm(frame_points[i], reprojected_points, cv2.NORM_L2)/len(reprojected_points)
-        total_error += error
-        total_error_sq += error * error
 
-    mean_error = total_error/len(object_points)
-    rms_error = np.sqrt(total_error_sq/len(object_points))
+    reprojected_points, _ = cv2.projectPoints(object_points, rvecs, tvecs, K_phone, None)
+    error = cv2.norm(np.array(frame_points), reprojected_points.reshape(-1,2), cv2.NORM_L2)/len(reprojected_points)
 
     offset = np.array(tvecs).reshape(-1)[[0,1]]
     mag = np.linalg.norm(offset)
@@ -101,9 +93,7 @@ def estimate_pose_with_3d_points(frame_points, pano_points, locations, heading, 
     gmap3.scatter([localized_coord.latitude], [localized_coord.longitude], '#0000FF', size=7, marker=True)
     gmap3.draw(f"{data_dir}/image_locations.html")
 
-    return estimate, rms_error
-
-def find_reprojection_error(locations, pano_points, object_points, vehicle_pose)
+    return estimate, error
 
 def find_homography(points1, points2, K_phone, im1, im2):
     K_streetview = K_phone
