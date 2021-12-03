@@ -42,6 +42,7 @@ def correspondence_error(p, K, y, x):
     # find z and z_hat and return the distance (dot product?)
 
     x_hat = np.matmul(np.matmul(p, np.array([*y, 1]).T), K)
+    return np.linalg.norm(x - x_hat[:2])
 
     dx_hat,dy_hat,dz_hat = np.linalg.solve(K, [*x_hat[:2],1])
     dx,dy,dz = np.linalg.solve(K, [*x,1])
@@ -79,8 +80,8 @@ def estimate_pose_with_3d_points(frame_points, pano_points, locations, heading, 
     P = []
 
     for i in range(len(locations)):
-        dy = geopy.distance.distance(locations[0], (locations[i, 0], locations[0, 1])).m
-        dx = geopy.distance.distance(locations[0], (locations[0, 0], locations[i, 1])).m
+        dx = geopy.distance.distance(locations[0], (locations[i, 0], locations[0, 1])).m
+        dy = geopy.distance.distance(locations[0], (locations[0, 0], locations[i, 1])).m
 
         pose = np.zeros((3, 4))
         rotation = R.from_euler('xyz', [pitch, -heading, 0], degrees=True).as_matrix() # init to just rotation matrix for now
@@ -98,9 +99,10 @@ def estimate_pose_with_3d_points(frame_points, pano_points, locations, heading, 
     reprojected_points, _ = cv2.projectPoints(object_points, rvecs, tvecs, K_phone, None)
     error = cv2.norm(np.array(frame_points), reprojected_points.reshape(-1,2), cv2.NORM_L2)/len(reprojected_points)
 
-    offset = np.array(tvecs).reshape(-1)[[0,1]]
+    print(np.array(tvecs).reshape(-1))
+    offset = np.array(tvecs).reshape(-1)[[0,2]]
     mag = np.linalg.norm(offset)
-    bearing = np.arctan(offset[0]/offset[1])
+    bearing = np.arctan2(offset[0], offset[1])
 
     localized_coord = geopy.distance.distance(meters=mag).destination(locations[0], bearing=np.rad2deg(bearing))
     gmap3 = gmplot.GoogleMapPlotter(34.060458, -118.437621, 17, apikey=api_key)

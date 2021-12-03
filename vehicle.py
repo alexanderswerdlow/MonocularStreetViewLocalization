@@ -121,8 +121,7 @@ class Vehicle:
             for feature in filtered_features:
                 cv2.circle(image, feature, 20, (255, 0, 0), -1)
         
-            cv2.imshow('Features', image)
-            cv2.waitKey(0)
+            cv2.imwrite(f'{data_dir}/testing/features_{i}.png', image)
             
     def get_angles(self, d, heading):
         d /= np.linalg.norm(d, axis=1)[:, np.newaxis]
