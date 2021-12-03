@@ -102,6 +102,7 @@ class Vehicle:
             kvld_matches = saved_match[0]
             metadata = saved_match[1]
             matches = []
+            panos = []
             K = np.zeros((3, 3))
             for (pano, camera_matrix), points1, points2, m in kvld_matches:
                 K = camera_matrix
@@ -111,17 +112,14 @@ class Vehicle:
                 
                 num_matches.append(len(points1))
                 locations.append([pano.lat, pano.long])
-                # breakpoint()
-                # R, t, points = find_homography(points1, points2, camera_matrix, cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY), cv2.cvtColor(pano.get_rectilinear_image(metadata['course'], 12, fov), cv2.COLOR_BGR2GRAY))
-                # breakpoint()
+                panos.append([pano, pano.get_rectilinear_image(metadata['course'], 12, fov, scaled_frame_width, scaled_frame_height)])
+                # R, t = find_homography(points1, points2, camera_matrix, cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY), cv2.cvtColor(pano.get_rectilinear_image(metadata['course'], 12, fov), cv2.COLOR_BGR2GRAY))
                 # translations.append([t[2], t[0]])
 
             i = np.argpartition(num_matches, -n)[-n:]
             matches = np.array(matches)[i]
             locations = np.array(locations)[i]
-            # breakpoint()
-            
-            
+            panos = np.array(panos)[i]
             # directions = self.get_angles(np.array(translations)[i], metadata['course'])
             # localized_point = estimate_location(locations, directions)
             # print(localized_point)
@@ -130,9 +128,9 @@ class Vehicle:
                 return None
             pts3D = find_homography(pano_points[0], pano_points[1], K, None, None)
             # estimate_pose_with_3d_points(frame_points, pano_points, locations, metadata['course'], 12, 2.5, K)
-            ret = estimate_pose_with_3d_points(frame_points, pano_points, locations, metadata['course'], 12, 2.5, K, metadata, pts3D)
-            if ret is not None:
-                self.measurements.append([ret[0], ret[1]])
+            # ret = estimate_pose_with_3d_points(frame_points, pano_points, locations, metadata['course'], 12, 2.5, K, metadata, pts3D)
+            # if ret is not None:
+            #     self.measurements.append([ret[0], ret[1]])
 
         #if self.frame_idx % 100 == 0 and len(self.measurements) > 2:
         #     # from config import api_key
@@ -151,6 +149,23 @@ class Vehicle:
             #    corresponding frame point), so we can calculate the 3d points (apply a solver)
             # 2. PnP solver to find frame points pose w.r.t 3d points
 
+            # self.plot_pano_features_subset(panos, matches, pano_points)
+            X, reprojection_error = estimate_pose_with_3d_points(frame_points, pano_points, locations, metadata['course'], 12, 2.5, K)
+            
+    def plot_pano_features_subset(self, panos, matches, pano_points):
+        for i, (pano, im) in enumerate(panos):
+            match = matches[i]
+            image = im.copy()
+            all_features = np.array(match[1]).astype(int)
+            filtered_features = np.array(pano_points[i]).astype(int)
+            for feature in all_features:
+                cv2.circle(image, feature, 10, (0, 0, 255), -1)
+            
+            for feature in filtered_features:
+                cv2.circle(image, feature, 20, (255, 0, 0), -1)
+        
+            cv2.imshow('Features', image)
+            cv2.waitKey(0)
             
     def get_angles(self, d, heading):
         d /= np.linalg.norm(d, axis=1)[:, np.newaxis]

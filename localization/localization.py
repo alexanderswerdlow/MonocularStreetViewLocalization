@@ -1,3 +1,4 @@
+from re import T
 import cv2
 import numpy as np
 import geopy.distance
@@ -85,7 +86,6 @@ def correspondence_error(p, K, y, x):
     # x is 2d feature image point
 
     # find z and z_hat and return the distance (dot product?)
-    # print(p.shape, y.shape, K.shape)
     x_hat = np.matmul(np.matmul(p, np.array([*y, 1]).T), K)
 
     dx_hat,dy_hat,dz_hat = np.linalg.solve(K, [*x_hat[:2],1])
@@ -102,27 +102,23 @@ def correspondence_error(p, K, y, x):
 
     return np.linalg.norm(z - z_hat)
 
-def tukey_biweight(x):
-    t = 454669050
-    if x <= t:
-        return (t**2 / 6) * (1 - (1 - (x/t)**2)**3)
-    else:
-        return t**2 / 6
-
 def triangulation_error(y, P, K, pano_points):
     total_error = 0
     for i, p in enumerate(P):
         image_points = pano_points[i]
         for j, image_point in enumerate(image_points):
-            import scipy
-            total_error += correspondence_error(p, K, y[j*3:j*3+3], image_point)**2, np.sqrt(5.99)
+            total_error += correspondence_error(p, K, y[j*3:j*3+3], image_point)**2
 
     return total_error
 
-def estimate_pose_with_3d_points(frame_points, pano_points, locations, heading, pitch, height, K_phone, aa, aaa):
-    K_streetview = K_phone
+def estimate_pose_with_3d_points(frame_points, pano_points, locations, heading, pitch, height, K_phone):
+    # 1. Find 3d coordinates from just the panoramas. Initial guess is just triangulation from 2 panos
+    #    We know 6DOF pose for each pano and image points (all image points for each pano is sorted relative to its
+    #    corresponding frame point), so we can calculate the 3d points (apply a solver)
+    # 2. PnP solver to find frame points pose w.r.t 3d points
+    K_streetview = K_phone.copy()
     K_streetview[:,-1] = 0 # reset principal point
-    K_streetview[-1,-1] = 1
+    K_streetview[-1,-1] = 1 
 
     P = []
 
@@ -144,7 +140,10 @@ def estimate_pose_with_3d_points(frame_points, pano_points, locations, heading, 
     # print(object_points.shape)
 
     ret, rvecs, tvecs = cv2.solvePnP(object_points, np.array(frame_points).astype(np.float32), K_phone, None)
-    
+
+    reprojected_points, _ = cv2.projectPoints(object_points, rvecs, tvecs, K_phone, None)
+    error = cv2.norm(np.array(frame_points), reprojected_points.reshape(-1,2), cv2.NORM_L2)/len(reprojected_points)
+
     offset = np.array(tvecs).reshape(-1)[[0,1]]
     mag = np.linalg.norm(offset)
     bearing = np.arctan(offset[0]/offset[1])
@@ -154,7 +153,7 @@ def estimate_pose_with_3d_points(frame_points, pano_points, locations, heading, 
     gmap3.scatter([localized_coord.latitude], [localized_coord.longitude], '#0000FF', size=7, marker=True)
     gmap3.draw(f"tmp/image_locations.html")
 
-    return localized_coord.latitude, localized_coord.longitude
+    return estimate, error
 
 global num_writes
 num_writes = 0
