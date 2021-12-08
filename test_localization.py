@@ -2,9 +2,16 @@ from vehicle import Vehicle
 import os
 import shutil
 
+from multiprocessing import get_context
+
+def run_frames(solver):
+    print(solver)
+    test_vehicle = Vehicle(solver=solver)
+    test_vehicle.iterate_frames()
+    print('finished', solver)
+    return None
+
 if __name__ == '__main__':
-
-
     # Delete tmp dir and recreate; Used for misc debug output
     dir = 'tmp'
     if os.path.exists(dir):
@@ -17,9 +24,11 @@ if __name__ == '__main__':
         shutil.rmtree(dir)
     os.makedirs(dir)
 
-    test_vehicle = Vehicle()
     try:
-        test_vehicle.iterate_frames()
+        with get_context("spawn").Pool(3) as pool:
+            # print(pool.map(run_frames, ['ceres', 'g2o', 'scipy']))
+            pool.map(run_frames, ['ceres', 'g2o', 'scipy'])
     except KeyboardInterrupt:
         print("Caught KeyboardInterrupt")
+    
 

@@ -7,12 +7,12 @@ import matplotlib.pyplot as plt
 
 from localization.segmentation import SemanticSegmentation
 from download.query import query
-from config import start_frame, images_dir, recording_dir, scaled_frame_width, scaled_frame_height, SCALE_FACTOR, FRAME_WIDTH, data_dir
+from config import start_frame, images_dir, recording_dir, scaled_frame_width, scaled_frame_height, SCALE_FACTOR, FRAME_WIDTH, data_dir, api_key
 import cv2
 from utilities import is_cv_cuda
 import pickle
 from localization.kvld import get_kvld_matches
-from localization.localization import estimate_location, find_homography, find_correspondence_set_intersection, estimate_pose_with_3d_points
+from localization.localization import *
 import copyreg
 
 
@@ -24,30 +24,48 @@ copyreg.pickle(cv2.DMatch().__class__, _pickle_dmatch)
 
 
 class Vehicle:
-    def __init__(self):
+    def __init__(self, solver):
+        self.solver = solver
         self.log = pd.read_pickle(os.path.join(recording_dir, 'log.dat'))
         self.video = cv2.VideoCapture(os.path.join(recording_dir, 'Frames.m4v'))
         self.video.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
         self.segmentation = SemanticSegmentation()
         self.frame_idx = start_frame
+        self.gmap3 = CustomGoogleMapPlotter(34.060458, -118.437621, 17, apikey=api_key)
+        self.frames_processed = 0
 
         try:
-            self.saved_matches = pickle.load(open(f"{data_dir}/kvld_matches.p", "rb"))
+            self.saved_matches = pickle.load(open(f"{data_dir}/kvld_matches_2.p", "rb"))
         except (OSError, IOError) as e:
             self.saved_matches = {}
+            
+        try:
+            self.compute = pickle.load(open(f"{data_dir}/{self.solver}.p", "rb"))
+        except (OSError, IOError) as e:
+            self.compute = {}
+
+        for _, _, localized_coord in self.compute.values():
+            self.gmap3.scatter([localized_coord.latitude], [localized_coord.longitude], '#0000FF', size=7, marker=True)
+
+
+        self.gmap3.draw(f"{data_dir}/image_locations_{self.solver}.html")
+        self.run_metrics()
+        
+            
+    def run_metrics(self):
+        from metrics import process_data
+        data_points = {k:v for k,v in self.compute.items() if k < 8100} # 6900
+        print(f'{self.solver}: {process_data(data_points, self.solver)}, len: {len(self.compute)}')
 
     def iterate_frames(self):
         start_row = self.log.index[(self.log['frame_number'] == start_frame + 2490) & (self.log['new_frame'] == 1)].tolist()[0]
         for _, row in self.log.iloc[start_row:].iterrows():
             if row['new_frame'] == 1:
                 start_time = time.time()
-                if is_cv_cuda():
-                    frame = cv2.imread('0-frame.jpg')  # TODO: Fix reading frames w/CUDA
-                else:
-                    _, frame = self.video.read()
+                _, frame = self.video.read()
                 row['camera_matrix'] = self.format_camera_matrix(row)
                 self.localize_frame(frame, row)
-                print(f'Frame {self.frame_idx} took: {time.time() - start_time}')
+                # print(f'{self.solver}, Frame {self.frame_idx} took: {time.time() - start_time}')
                 self.frame_idx += 1
 
     def format_camera_matrix(self, metadata):
@@ -65,49 +83,42 @@ class Vehicle:
     def match_frame_to_panorama(self, frame, metadata, n=4):
         fov = np.rad2deg(np.arctan(FRAME_WIDTH/metadata['focal_length_x']))
 
-        if self.frame_idx % 10 == 0 and self.frame_idx not in self.saved_matches:
-            print(f'Starting on Frame: {self.frame_idx}')
-            panoramas = self.get_nearby_panoramas(metadata)
-            pano_data = self.extract_rectilinear_views(panoramas, metadata)
-            frame_data = self.process_frame(frame)
-
-            pano_dict = {p[0].pano_id: p for p in pano_data}
-            kvld_matches = get_kvld_matches((self.frame_idx, frame_data), pano_dict)
-            self.saved_matches[self.frame_idx] = (kvld_matches, metadata)
-
-        if self.frame_idx in self.saved_matches:
+        if self.frame_idx in self.saved_matches and self.frame_idx not in self.compute:
             locations = []
-            translations = []
             num_matches = []
             saved_match = self.saved_matches[self.frame_idx]
             kvld_matches = saved_match[0]
             metadata = saved_match[1]
             matches = []
-            panos = []
-            K = np.zeros((3, 3))
+           
             for (pano, camera_matrix), points1, points2, m in kvld_matches:
                 K = camera_matrix
-                # points1 = [(int(x), int(y)) for x, y in points1]
-                # points2 = [(int(x), int(y)) for x, y in points2]
                 matches.append([points1, points2])
-                
                 num_matches.append(len(points1))
                 locations.append([pano.lat, pano.long])
-                panos.append([pano, pano.get_rectilinear_image(metadata['course'], 12, fov, scaled_frame_width, scaled_frame_height)])
-                # R, t = find_homography(points1, points2, camera_matrix, cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY), cv2.cvtColor(pano.get_rectilinear_image(metadata['course'], 12, fov), cv2.COLOR_BGR2GRAY))
-                # translations.append([t[2], t[0]])
 
             i = np.argpartition(num_matches, -n)[-n:]
-            matches = np.array(matches)[i]
+            matches = np.array(matches, dtype=object)[i]
             locations = np.array(locations)[i]
-            panos = np.array(panos)[i]
-            # directions = self.get_angles(np.array(translations)[i], metadata['course'])
-            # localized_point = estimate_location(locations, directions)
-            # print(localized_point)
+            print(f'{self.solver} running frame {self.frame_idx}')
+            if self.solver == 'scipy':
+                frame_points, pano_points = find_correspondence_set_intersection(matches)
+                estimate, error, localized_coord, locations = estimate_pose_with_3d_points(frame_points, pano_points, locations, metadata['course'], 12, 2.5, K)
+            elif self.solver == 'g2o':
+                estimate, error, localized_coord, locations = estimate_pose_with_3d_points_g2o(matches, locations, metadata['course'], 12, 2.5, K, metadata, fov, scaled_frame_width, scaled_frame_height)
+            elif self.solver == 'ceres':
+                estimate, error, localized_coord, locations = estimate_pose_with_3d_points_ceres(matches, locations, metadata['course'], 12, 2.5, K, metadata, fov, scaled_frame_width, scaled_frame_height)
+            
+            if localized_coord is not None:
+                self.compute[self.frame_idx] = (estimate, error, localized_coord)
+                self.frames_processed += 1
 
-            frame_points, pano_points = find_correspondence_set_intersection(matches)
-            # self.plot_pano_features_subset(panos, matches, pano_points)
-            X, reprojection_error = estimate_pose_with_3d_points(frame_points, pano_points, locations, metadata['course'], 12, 2.5, K)
+                if self.frames_processed % 10 == 0:
+                    pickle.dump(self.compute, open(f"{data_dir}/{self.solver}.p", "wb"))
+                    self.gmap3.scatter(locations[:, 0], locations[:, 1], '#FF0000', size=5, marker=True)
+                    self.gmap3.scatter([localized_coord.latitude], [localized_coord.longitude], '#0000FF', size=7, marker=True)
+                    self.gmap3.draw(f"{data_dir}/image_locations_{self.solver}.html")
+                    self.run_metrics()
             
     def plot_pano_features_subset(self, panos, matches, pano_points):
         for i, (pano, im) in enumerate(panos):
