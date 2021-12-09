@@ -42,7 +42,7 @@ def pairwise(iterable):
 
 def calculate_error(sparse_true_coords, estimated_coords):
     dist = []
-    for z in estimated_coords:
+    for idx, z in enumerate(estimated_coords):
         min_dist = np.inf
         for i, j in pairwise(sparse_true_coords):
             tmp_dist = distance_to_line([0, 0], convert_to_meters(i, j), convert_to_meters(i, z))
@@ -79,10 +79,9 @@ def kalman_filter(estimated):
     kf = KalmanFilter(initial_state_mean=estimated[0], n_dim_obs=2)
     return kf.em(estimated, n_iter=10).smooth(estimated)[0]
 
-
 def outlier_rejection(estimated):
-    a = sortoutOutliers(estimated[:, 0], 0.8)
-    b = sortoutOutliers(estimated[:, 1], 0.8)
+    a = sortoutOutliers(estimated[:, 0], 2)
+    b = sortoutOutliers(estimated[:, 1], 2)
     est = []
     for i in range(len(estimated)):
         if a[i] and b[i]:
@@ -90,27 +89,40 @@ def outlier_rejection(estimated):
     return np.array(est)
 
 def plot_stuff(min_errors, indicies, solver):
-    plt.title(f"Distance to Ground Truth, RMSE: {round(np.sqrt(np.mean(min_errors**2)), 3)}")
+    plt.title(f"Distance to Ground Truth, RMSE: {round(np.sqrt(np.mean(min_errors**2)), 3)}, Std: {round(min_errors.std(), 3)}")
     plt.xlabel("Estimated Point")
     plt.ylabel("Min Dist to Reference Trajectory (Meters)")
     plt.plot(sorted(indicies), [x for _, x in sorted(zip(indicies, min_errors))])
     plt.savefig(f'{data_dir}/error-{solver}.png', bbox_inches='tight', dpi=600)
     plt.clf()
 
+def save_map(estimated, trajectory, solver):
+    from localization.localization import CustomGoogleMapPlotter
+    gmap3 = CustomGoogleMapPlotter(34.060458, -118.437621, 17, apikey=api_key)
+    gmap3.plot(trajectory[:,0], trajectory[:,1], '#FF0000', size=5, marker=True)
+    gmap3.scatter(estimated[:,0], estimated[:,1], '#0000FF', size=5, marker=True)
+    gmap3.draw(f"{data_dir}/{solver}-kalman.html")
+
 def process_data(data_points, solver):
     from download.waypoints import reference
     trajectory = np.array(reference)
     if len(data_points) == 0:
-        return 0
-    indices, estimated = list(zip(*[(k, (x[2].latitude, x[2].longitude)) for k,x in data_points.items()]))
+        return 0, None
+    indices, estimated = list(zip(*[(k, (x[1].latitude, x[1].longitude)) for k,x in data_points.items()]))
     estimated = np.array(estimated)
     # if solver == 'scipy' and len(estimated) > 0:
     #     estimated = outlier_rejection(estimated)
 
-    # estimated = kalman_filter(estimated)
+    # try:
     min_errors = calculate_error(trajectory, estimated)
+    kalman_estimated = kalman_filter(estimated)
+    min_errors_kalman = calculate_error(trajectory, kalman_estimated)
     plot_stuff(min_errors, indices, solver)
-    return np.sqrt(np.mean(min_errors**2))
+    plot_stuff(min_errors_kalman, indices, solver + '-kalman')
+    save_map(kalman_estimated, trajectory, solver)
+    # except:
+    #     breakpoint()
+    return np.sqrt(np.mean(min_errors**2)), kalman_estimated
 
 
 if __name__ == '__main__':
@@ -150,10 +162,10 @@ if __name__ == '__main__':
     plt.plot(x, errors)
     plt.savefig('reproj.png', bbox_inches='tight', dpi=600)
 
-    # from localization.localization import CustomGoogleMapPlotter
-    # localized_coord = geopy.distance.distance(meters=mag).destination(locations[0], bearing=np.rad2deg(bearing))
-    # gmap3 = CustomGoogleMapPlotter(34.060458, -118.437621, 17, apikey=api_key)
-    # gmap3.scatter(trajectory[:,0], trajectory[:,1], '#0000FF', size=5, marker=True)
-    # gmap3.scatter(estimated[:,0], estimated[:,1], '#FF0000', size=5, marker=True)
-    # gmap3.scatter([localized_coord.latitude], [localized_coord.longitude], '#0000FF', size=7, marker=True)
-    # gmap3.draw(f"{data_dir}/trajectory_offsets.html")
+    from localization.localization import CustomGoogleMapPlotter
+    localized_coord = geopy.distance.distance(meters=mag).destination(locations[0], bearing=np.rad2deg(bearing))
+    gmap3 = CustomGoogleMapPlotter(34.060458, -118.437621, 17, apikey=api_key)
+    gmap3.scatter(trajectory[:,0], trajectory[:,1], '#0000FF', size=5, marker=True)
+    gmap3.scatter(estimated[:,0], estimated[:,1], '#FF0000', size=5, marker=True)
+    gmap3.scatter([localized_coord.latitude], [localized_coord.longitude], '#0000FF', size=7, marker=True)
+    gmap3.draw(f"{data_dir}/trajectory_offsets.html")

@@ -7,11 +7,9 @@ import matplotlib.pyplot as plt
 
 from localization.segmentation import SemanticSegmentation
 from download.query import query
-from config import start_frame, images_dir, recording_dir, scaled_frame_width, scaled_frame_height, SCALE_FACTOR, FRAME_WIDTH, data_dir, api_key
+from config import start_frame, recording_dir, scaled_frame_width, scaled_frame_height, SCALE_FACTOR, FRAME_WIDTH, data_dir, api_key, end_frame
 import cv2
-from utilities import is_cv_cuda
 import pickle
-from localization.kvld import get_kvld_matches
 from localization.localization import *
 import copyreg
 
@@ -35,27 +33,27 @@ class Vehicle:
         self.frames_processed = 0
 
         try:
-            self.saved_matches = pickle.load(open(f"{data_dir}/kvld_matches_2.p", "rb"))
+            self.saved_matches = pickle.load(open(f"{data_dir}/kvld_matches_merged_2.p", "rb"))
         except (OSError, IOError) as e:
             self.saved_matches = {}
-            
+
         try:
             self.compute = pickle.load(open(f"{data_dir}/{self.solver}.p", "rb"))
         except (OSError, IOError) as e:
             self.compute = {}
 
-        for _, _, localized_coord in self.compute.values():
+        for _, localized_coord in self.compute.values():
             self.gmap3.scatter([localized_coord.latitude], [localized_coord.longitude], '#0000FF', size=7, marker=True)
-
 
         self.gmap3.draw(f"{data_dir}/image_locations_{self.solver}.html")
         self.run_metrics()
-        
-            
+
     def run_metrics(self):
         from metrics import process_data
-        data_points = {k:v for k,v in self.compute.items() if k < 8100} # 6900
-        print(f'{self.solver}: {process_data(data_points, self.solver)}, len: {len(self.compute)}')
+        data_points = {k: v for k, v in self.compute.items() if start_frame <= k <= end_frame}  # 6900
+        err, kalman_estimated = process_data(data_points, self.solver)
+        print(f'{self.solver}: {err}, len: {len(self.compute)}')
+        return kalman_estimated
 
     def iterate_frames(self):
         start_row = self.log.index[(self.log['frame_number'] == start_frame + 2490) & (self.log['new_frame'] == 1)].tolist()[0]
@@ -67,6 +65,8 @@ class Vehicle:
                 self.localize_frame(frame, row)
                 # print(f'{self.solver}, Frame {self.frame_idx} took: {time.time() - start_time}')
                 self.frame_idx += 1
+            if self.frame_idx > end_frame:
+                break
 
     def format_camera_matrix(self, metadata):
         camera_matrix = np.array([
@@ -90,7 +90,7 @@ class Vehicle:
             kvld_matches = saved_match[0]
             metadata = saved_match[1]
             matches = []
-           
+
             for (pano, camera_matrix), points1, points2, m in kvld_matches:
                 K = camera_matrix
                 matches.append([points1, points2])
@@ -100,26 +100,36 @@ class Vehicle:
             i = np.argpartition(num_matches, -n)[-n:]
             matches = np.array(matches, dtype=object)[i]
             locations = np.array(locations)[i]
+
+            for i in range(len(locations)):
+                locations[i, 0] -= 0.00004
             print(f'{self.solver} running frame {self.frame_idx}')
             if self.solver == 'scipy':
                 frame_points, pano_points = find_correspondence_set_intersection(matches)
-                estimate, error, localized_coord, locations = estimate_pose_with_3d_points(frame_points, pano_points, locations, metadata['course'], 12, 2.5, K)
+                localized_coord, locations = estimate_pose_with_3d_points(frame_points, pano_points, locations, metadata['course'], 12, 2.5, K)
             elif self.solver == 'g2o':
-                estimate, error, localized_coord, locations = estimate_pose_with_3d_points_g2o(matches, locations, metadata['course'], 12, 2.5, K, metadata, fov, scaled_frame_width, scaled_frame_height)
+                localized_coord, locations = estimate_pose_with_3d_points_g2o(matches, locations, metadata['course'], 12, 2.5, K, metadata, fov, scaled_frame_width, scaled_frame_height)
             elif self.solver == 'ceres':
-                estimate, error, localized_coord, locations = estimate_pose_with_3d_points_ceres(matches, locations, metadata['course'], 12, 2.5, K, metadata, fov, scaled_frame_width, scaled_frame_height)
-            
+                localized_coord, locations = estimate_pose_with_3d_points_ceres(matches, locations, metadata['course'], 12, 2.5, K, metadata, fov, scaled_frame_width, scaled_frame_height)
+
             if localized_coord is not None:
-                self.compute[self.frame_idx] = (estimate, error, localized_coord)
+                self.compute[self.frame_idx] = (metadata, localized_coord)
                 self.frames_processed += 1
 
-                if self.frames_processed % 10 == 0:
+                if self.frames_processed % 50 == 0:
                     pickle.dump(self.compute, open(f"{data_dir}/{self.solver}.p", "wb"))
-                    self.gmap3.scatter(locations[:, 0], locations[:, 1], '#FF0000', size=5, marker=True)
                     self.gmap3.scatter([localized_coord.latitude], [localized_coord.longitude], '#0000FF', size=7, marker=True)
                     self.gmap3.draw(f"{data_dir}/image_locations_{self.solver}.html")
-                    self.run_metrics()
-            
+                    estimated_kalman = self.run_metrics()
+                    # if estimated_kalman is not None:
+                    #     final_output = {k:(*v, estimated_kalman[idx]) for idx, (k,v) in enumerate(self.compute.items())}
+                    #     pickle.dump(final_output, open(f"{data_dir}/estimated_output_{self.solver}.p", "wb"))
+                    # else:
+                    #     print("Empty!")
+
+            else:
+                print(f"No Coord: {self.solver}")
+
     def plot_pano_features_subset(self, panos, matches, pano_points):
         for i, (pano, im) in enumerate(panos):
             match = matches[i]
@@ -128,15 +138,15 @@ class Vehicle:
             filtered_features = np.array(pano_points[i]).astype(int)
             for feature in all_features:
                 cv2.circle(image, feature, 10, (0, 0, 255), -1)
-            
+
             for feature in filtered_features:
                 cv2.circle(image, feature, 20, (255, 0, 0), -1)
-        
+
             cv2.imwrite(f'{data_dir}/testing/features_{i}.png', image)
-            
+
     def get_angles(self, d, heading):
         d /= np.linalg.norm(d, axis=1)[:, np.newaxis]
-        angles = heading - np.rad2deg(np.arctan2(d[:,1], d[:,0]))
+        angles = heading - np.rad2deg(np.arctan2(d[:, 1], d[:, 0]))
         return angles
 
     def process_frame(self, frame):

@@ -23,12 +23,17 @@ if __name__ == '__main__':
     if os.path.exists(dir):
         shutil.rmtree(dir)
     os.makedirs(dir)
+    
+    multi = True
 
-    try:
-        with get_context("spawn").Pool(3) as pool:
-            # print(pool.map(run_frames, ['ceres', 'g2o', 'scipy']))
-            pool.map(run_frames, ['ceres', 'g2o', 'scipy'])
-    except KeyboardInterrupt:
-        print("Caught KeyboardInterrupt")
+    if multi:
+        try:
+            with get_context("spawn").Pool(3) as pool:
+                # print(pool.map(run_frames, ['ceres', 'g2o', 'scipy']))
+                pool.map(run_frames, ['ceres', 'g2o', 'scipy'])
+        except KeyboardInterrupt:
+            print("Caught KeyboardInterrupt")
+    else:
+        run_frames('g2o')
     
 

@@ -39,7 +39,6 @@ class CustomGoogleMapPlotter(GoogleMapPlotter):
         f.write('\n')
 
 
-
 def find_correspondence_set_intersection(all_matches):
     intersection_frame_points = set(all_matches[0][0])
     all_frame_points = set(all_matches[0][0])
@@ -59,11 +58,13 @@ def find_correspondence_set_intersection(all_matches):
 
     return intersection_frame_points, all_filtered_pano_points
 
-def tukey_loss(x, t=6):
+
+def tukey_loss(x, t=3):
     if np.abs(x) <= t:
         return ((t**2)/6) * (1 - (1 - (x / t)**2)**3)
     else:
         return (t**2)/6
+
 
 def correspondence_error(p, K, y, x):
     # computes the bearing and azimuthal angles from camera pose p to feature yj in the camera frame
@@ -98,7 +99,7 @@ def triangulation_error(y, P, K, pano_points):
         image_points = pano_points[i]
         for j, image_point in enumerate(image_points):
             error = correspondence_error(p, K, y[j*3:j*3+3], image_point)
-            total_error += tukey_loss(error**2)
+            total_error += tukey_loss(error)
 
     return total_error
 
@@ -133,7 +134,7 @@ def estimate_pose_with_3d_points(frame_points, pano_points, locations, heading, 
 
         ret, rvecs, tvecs = cv2.solvePnP(object_points, np.array(frame_points).astype(np.float32), K_phone, None)
     except:
-        return None, None, None, None
+        return None, None
 
     reprojected_points, _ = cv2.projectPoints(object_points, rvecs, tvecs, K_phone, None)
     error = cv2.norm(np.array(frame_points), reprojected_points.reshape(-1, 2), cv2.NORM_L2)/len(reprojected_points)
@@ -144,7 +145,7 @@ def estimate_pose_with_3d_points(frame_points, pano_points, locations, heading, 
     bearing = np.arctan2(offset[0], offset[1])
 
     localized_coord = geopy.distance.distance(meters=mag).destination(locations[0], bearing=np.rad2deg(bearing))
-    return estimate, error, localized_coord, locations
+    return localized_coord, locations
 
 
 def find_points(points1, points2, K_phone, K_streetview):
@@ -159,7 +160,8 @@ def find_points(points1, points2, K_phone, K_streetview):
     pts3D = pts4D[:, :3]/np.repeat(pts4D[:, 3], 3).reshape(-1, 3)
     return pts3D
 
-def find_n_intersection(matches, n_required = 3):
+
+def find_n_intersection(matches, n_required=3):
     all_frame_points = set(matches[0][0])
     freq = defaultdict(int)
     for frame_points, pano_points in matches:
@@ -168,7 +170,7 @@ def find_n_intersection(matches, n_required = 3):
             freq[f] += 1
 
     for k, v in freq.items():
-        if v < 3:
+        if v < n_required:
             all_frame_points.remove(k)
 
     all_filtered_pano_points = []
@@ -182,12 +184,25 @@ def find_n_intersection(matches, n_required = 3):
 
     return list(all_frame_points), all_filtered_pano_points
 
+
+def get_median(dataset):
+    if len(dataset) > 2:
+        norms = [np.linalg.norm(x) for x in dataset]
+        amedian = np.nanmedian(norms)
+        idx = np.nanargmin(np.abs(norms-amedian))
+        return dataset[idx]
+    elif 1 <= len(dataset) <= 2:
+        return np.mean(dataset, axis=0)
+    else:
+        return np.zeros(3)
+
+
 def estimate_pose_with_3d_points_g2o(matches, locations, heading, pitch, height, K_phone, metadata, fov, scaled_frame_width, scaled_frame_height):
     K_streetview = K_phone.copy()
     K_streetview[:, -1] = 0  # reset principal point
     K_streetview[-1, -1] = 1
 
-    frame_points, pano_points = find_n_intersection(matches, n_required = 3)
+    frame_points, pano_points = find_n_intersection(matches, n_required=2)
 
     import g2o
     optimizer = g2o.SparseOptimizer()
@@ -228,7 +243,7 @@ def estimate_pose_with_3d_points_g2o(matches, locations, heading, pitch, height,
     cam.set_id(1)
     optimizer.add_parameter(cam)
 
-    point_id = len(locations) + 1
+    to_remove = set()
     for i in range(len(frame_points)):
         pt_avg = []
         for j in range(len(locations)):
@@ -236,15 +251,19 @@ def estimate_pose_with_3d_points_g2o(matches, locations, heading, pitch, height,
                 try:
                     pts3D = find_points(np.array(matches[j][0]), np.array(matches[j][1]), K_phone, K_streetview)
                     idx = np.where(np.array(pano_points[j][i]) == np.array(matches[j][1]))[0][0]
-                    if np.linalg.norm(pts3D[idx]) < 200:
+                    if np.linalg.norm(pts3D[idx]) < 50:
                         pt_avg.append(pts3D[idx])
                 except Exception as e:
                     continue
 
+        if len(pt_avg) == 0:
+            to_remove.add(i)
+            continue
+
         vp = g2o.VertexSBAPointXYZ()
-        vp.set_id(point_id)
+        vp.set_id(i + len(locations) + 1)
         vp.set_marginalized(True)
-        vp.set_estimate(np.mean(pt_avg, axis=0))
+        vp.set_estimate(get_median(pt_avg))
         optimizer.add_vertex(vp)
 
         for j in range(len(locations)):
@@ -255,7 +274,7 @@ def estimate_pose_with_3d_points_g2o(matches, locations, heading, pitch, height,
                 edge.set_measurement(pano_points[j][i])
                 edge.set_information(np.identity(2))
                 rk = g2o.RobustKernelTukey()
-                rk.set_delta(4.685)
+                rk.set_delta(3)
                 edge.set_robust_kernel(rk)
                 edge.set_parameter_id(0, 1)
                 optimizer.add_edge(edge)
@@ -266,31 +285,31 @@ def estimate_pose_with_3d_points_g2o(matches, locations, heading, pitch, height,
         edge.set_measurement(frame_points[i])
         edge.set_information(np.identity(2))
         rk = g2o.RobustKernelTukey()
-        rk.set_delta(4.685)
+        rk.set_delta(3)
         edge.set_robust_kernel(rk)
         edge.set_parameter_id(0, 0)
         optimizer.add_edge(edge)
-        point_id += 1
-
-    # print('num vertices:', len(optimizer.vertices()), 'num edges:', len(optimizer.edges()))
 
     optimizer.set_verbose(False)
     optimizer.initialize_optimization()
     optimizer.optimize(10000)
 
-    object_points = np.zeros((len(frame_points), 3))
+    object_points = []
     for i in range(len(frame_points)):
-        object_points[i, :] = optimizer.vertex(1 + i + len(locations)).estimate()
+        if i not in to_remove:
+            object_points.append(optimizer.vertex(1 + i + len(locations)).estimate())
 
     if len(object_points) < 6:
-        return None, None, None, None
+        return None, None
 
     np.set_printoptions(suppress=True)
 
+    frame_points = [v for i, v in enumerate(frame_points) if i not in to_remove]
+
     try:
-        ret, rvecs, tvecs = cv2.solvePnP(object_points, np.array(frame_points).astype(np.float32), K_phone, None)
+        ret, rvecs, tvecs = cv2.solvePnP(np.array(object_points), np.array(frame_points).astype(np.float32), K_phone, None)
     except:
-        return None, None, None, None
+        return None, None
 
     offset = np.array(tvecs).reshape(-1)[[0, 1]]
     mag = np.linalg.norm(offset)
@@ -298,7 +317,7 @@ def estimate_pose_with_3d_points_g2o(matches, locations, heading, pitch, height,
 
     localized_coord = geopy.distance.distance(meters=mag).destination(locations[0], bearing=np.rad2deg(bearing))
 
-    return None, None, localized_coord, locations
+    return localized_coord, locations
 
 
 def estimate_pose_with_3d_points_ceres(matches, locations, heading, pitch, height, K_phone, metadata, fov, scaled_frame_width, scaled_frame_height):
@@ -311,15 +330,13 @@ def estimate_pose_with_3d_points_ceres(matches, locations, heading, pitch, heigh
     K_streetview[:, -1] = 0  # reset principal point
     K_streetview[-1, -1] = 1
 
-    frame_points, pano_points = find_n_intersection(matches, n_required = 3)
-
+    frame_points, pano_points = find_n_intersection(matches, n_required=2)
     problem = PyCeres.Problem()
 
-    cameras = np.zeros((len(locations)+1, 9))
+    cameras = np.zeros((len(locations) + 1, 9))
     for i in range(len(locations)):
         dy = geopy.distance.distance(locations[0], (locations[i, 0], locations[0, 1])).m
         dx = geopy.distance.distance(locations[0], (locations[0, 0], locations[i, 1])).m
-        pose = np.zeros(9)
         rotation = R.from_euler('xyz', [pitch, -heading, 0], degrees=True).as_mrp()  # init to just rotation matrix for now
         translation = np.array([dx, height, dy])
         cameras[i, :3] = rotation
@@ -336,32 +353,38 @@ def estimate_pose_with_3d_points_ceres(matches, locations, heading, pitch, heigh
 
     all_pts = np.zeros((len(frame_points), 3))
     for i in range(len(frame_points)):
+        pt_avg = []
         for j in range(len(locations)):
             if i in pano_points[j]:
                 try:
                     pts3D = find_points(np.array(matches[j][0]), np.array(matches[j][1]), K_phone, K_streetview)
                     idx = np.where(np.array(pano_points[j][i]) == np.array(matches[j][1]))[0][0]
-                    all_pts[i] = pts3D[idx]
+                    if np.linalg.norm(pts3D[idx]) < 50:
+                        pt_avg.append(pts3D[idx])
                 except Exception as e:
-                    print(e)
-                    return None, None, None, None
+                    continue
 
+        if len(pt_avg) == 0:
+            continue
+        all_pts[i] = get_median(pt_avg)
+        for j in range(len(locations)):
+            if i in pano_points[j]:
                 cost_function = PyCeres.CreateSnavelyCostFunction(pano_points[j][i][0], pano_points[j][i][1])
-                loss = PyCeres.TukeyLoss(4.685)
+                loss = PyCeres.TukeyLoss(3)
                 problem.AddResidualBlock(cost_function, loss, cameras[j], all_pts[i])
-                for k in range(3, 6):
-                    problem.SetParameterLowerBound(cameras[j], k, cameras[j][k] - 0.2)
-                    problem.SetParameterUpperBound(cameras[j], k, cameras[j][k] + 0.2)
+                for k in range(0, 6):
+                    problem.SetParameterLowerBound(cameras[j], k, cameras[j][k] - 0.5)
+                    problem.SetParameterUpperBound(cameras[j], k, cameras[j][k] + 0.5)
 
         cost_function = PyCeres.CreateSnavelyCostFunction(frame_points[i][0], frame_points[i][1])
-        loss = PyCeres.TukeyLoss(4.685)
+        loss = PyCeres.TukeyLoss(3)
         problem.AddResidualBlock(cost_function, loss, cameras[-1], all_pts[i])
 
     np.set_printoptions(suppress=True)
     options = PyCeres.SolverOptions()
     options.linear_solver_type = PyCeres.LinearSolverType.DENSE_SCHUR
     options.minimizer_progress_to_stdout = False
-    options.max_num_iterations = 200
+    options.max_num_iterations = 100
 
     summary = PyCeres.Summary()
     PyCeres.Solve(options, problem, summary)
@@ -372,6 +395,6 @@ def estimate_pose_with_3d_points_ceres(matches, locations, heading, pitch, heigh
     bearing = np.arctan(offset[0]/offset[1])
 
     localized_coord = geopy.distance.distance(meters=mag).destination(locations[0], bearing=np.rad2deg(bearing))
+    # localized_coord.latitude = localized_coord.latitude - 0.00004
 
-
-    return None, None, localized_coord, locations
+    return localized_coord, locations
