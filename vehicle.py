@@ -1,4 +1,5 @@
 from collections import defaultdict
+from math import e
 import os
 import time
 import pandas as pd
@@ -43,10 +44,10 @@ class Vehicle:
             self.compute = {}
 
         for _, localized_coord in self.compute.values():
-            self.gmap3.scatter([localized_coord.latitude], [localized_coord.longitude], '#0000FF', size=7, marker=True)
+            if localized_coord is not None:
+                self.gmap3.scatter([localized_coord.latitude], [localized_coord.longitude], '#0000FF', size=7, marker=True)
 
         self.gmap3.draw(f"{data_dir}/image_locations_{self.solver}.html")
-        self.run_metrics()
 
     def run_metrics(self):
         from metrics import process_data
@@ -80,7 +81,7 @@ class Vehicle:
         self.match_frame_to_panorama(frame, metadata)
         # Do Visual Odometry
 
-    def match_frame_to_panorama(self, frame, metadata, n=4):
+    def match_frame_to_panorama(self, frame, metadata, n=3):
         fov = np.rad2deg(np.arctan(FRAME_WIDTH/metadata['focal_length_x']))
 
         if self.frame_idx in self.saved_matches and self.frame_idx not in self.compute:
@@ -95,40 +96,51 @@ class Vehicle:
                 K = camera_matrix
                 matches.append([points1, points2])
                 num_matches.append(len(points1))
-                locations.append([pano.lat, pano.long])
+                locations.append([pano.lat - 0.00004, pano.long])
 
-            i = np.argpartition(num_matches, -n)[-n:]
-            matches = np.array(matches, dtype=object)[i]
-            locations = np.array(locations)[i]
-
-            for i in range(len(locations)):
-                locations[i, 0] -= 0.00004
             print(f'{self.solver} running frame {self.frame_idx}')
             if self.solver == 'scipy':
+                i = np.argpartition(num_matches, -n)[-n:]
+                matches = np.array(matches, dtype=object)[i]
+                locations = np.array(locations)[i]
                 frame_points, pano_points = find_correspondence_set_intersection(matches)
                 localized_coord, locations = estimate_pose_with_3d_points(frame_points, pano_points, locations, metadata['course'], 12, 2.5, K)
             elif self.solver == 'g2o':
+                i = np.argpartition(num_matches, -n)[-n:]
+                matches = np.array(matches, dtype=object)[i]
+                locations = np.array(locations)[i]
                 localized_coord, locations = estimate_pose_with_3d_points_g2o(matches, locations, metadata['course'], 12, 2.5, K, metadata, fov, scaled_frame_width, scaled_frame_height)
             elif self.solver == 'ceres':
+                # n = min(5, len(matches))
+                i = np.argpartition(num_matches, -n)[-n:]
+                matches = np.array(matches, dtype=object)[i]
+                locations = np.array(locations)[i]
                 localized_coord, locations = estimate_pose_with_3d_points_ceres(matches, locations, metadata['course'], 12, 2.5, K, metadata, fov, scaled_frame_width, scaled_frame_height)
 
+            self.frames_processed += 1
+            
             if localized_coord is not None:
-                self.compute[self.frame_idx] = (metadata, localized_coord)
-                self.frames_processed += 1
-
-                if self.frames_processed % 50 == 0:
-                    pickle.dump(self.compute, open(f"{data_dir}/{self.solver}.p", "wb"))
-                    self.gmap3.scatter([localized_coord.latitude], [localized_coord.longitude], '#0000FF', size=7, marker=True)
-                    self.gmap3.draw(f"{data_dir}/image_locations_{self.solver}.html")
-                    estimated_kalman = self.run_metrics()
-                    # if estimated_kalman is not None:
-                    #     final_output = {k:(*v, estimated_kalman[idx]) for idx, (k,v) in enumerate(self.compute.items())}
-                    #     pickle.dump(final_output, open(f"{data_dir}/estimated_output_{self.solver}.p", "wb"))
-                    # else:
-                    #     print("Empty!")
+                tmp = filter(lambda i: i < self.frame_idx and self.compute[i][1] is not None, self.compute.keys())
+                try:
+                    last_coord_idx = max(tmp)
+                    distance = geopy.distance.distance(localized_coord, self.compute[last_coord_idx][1]).m
+                    if distance < 100:
+                        self.compute[self.frame_idx] = (metadata, localized_coord)
+                    else:
+                        print(f'For {self.solver}, Frame {self.frame_idx} has distance {distance}')
+                except:
+                    print("First compute")
+                    self.compute[self.frame_idx] = (metadata, localized_coord)
 
             else:
                 print(f"No Coord: {self.solver}")
+
+        if self.frame_idx not in self.compute:
+            self.compute[self.frame_idx] = (metadata, None)
+
+        if self.frame_idx % 50 == 0:
+            print(f"Saving {self.solver}")
+            pickle.dump(self.compute, open(f"{data_dir}/{self.solver}.p", "wb"))
 
     def plot_pano_features_subset(self, panos, matches, pano_points):
         for i, (pano, im) in enumerate(panos):

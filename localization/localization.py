@@ -133,7 +133,7 @@ def estimate_pose_with_3d_points(frame_points, pano_points, locations, heading, 
         object_points = np.array(estimate.x).reshape((-1, 3))
 
         ret, rvecs, tvecs = cv2.solvePnP(object_points, np.array(frame_points).astype(np.float32), K_phone, None)
-    except:
+    except Exception as e:
         return None, None
 
     reprojected_points, _ = cv2.projectPoints(object_points, rvecs, tvecs, K_phone, None)
@@ -330,7 +330,7 @@ def estimate_pose_with_3d_points_ceres(matches, locations, heading, pitch, heigh
     K_streetview[:, -1] = 0  # reset principal point
     K_streetview[-1, -1] = 1
 
-    frame_points, pano_points = find_n_intersection(matches, n_required=2)
+    frame_points, pano_points = find_n_intersection(matches, n_required=4)
     problem = PyCeres.Problem()
 
     cameras = np.zeros((len(locations) + 1, 9))

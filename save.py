@@ -63,7 +63,7 @@ class Vehicle:
     def match_frame_to_panorama(self, frame, metadata):
         fov = np.rad2deg(np.arctan(FRAME_WIDTH/metadata['focal_length_x']))
 
-        if self.frame_idx not in self.saved_matches and self.frame_idx % 2 == 0:
+        if self.frame_idx not in self.saved_matches and self.frame_idx % 5 == 0:
             print(f'Starting on Frame: {self.frame_idx}')
             panoramas = self.get_nearby_panoramas(metadata)
             pano_data = self.extract_rectilinear_views(panoramas, metadata, fov)

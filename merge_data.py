@@ -9,7 +9,7 @@ def _pickle_dmatch(dmatch):
 
 copyreg.pickle(cv2.DMatch().__class__, _pickle_dmatch)
 
-files_to_open = ['2000', '4000', '4002', '5000']
+files_to_open = ['7200']
 saved_matches = []
 final_matches = {}
 for f in files_to_open:

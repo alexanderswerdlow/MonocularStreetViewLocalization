@@ -9,7 +9,7 @@ from scipy.sparse import data
 import scipy.stats as stat
 from scipy.stats import iqr
 import gmplot
-from config import api_key, data_dir
+from config import api_key, end_frame, start_frame, data_dir
 
 
 def distance_to_line(A, B, P):
@@ -114,9 +114,12 @@ def process_data(data_points, solver):
     #     estimated = outlier_rejection(estimated)
 
     # try:
+    import time; start_time = time.time()
     min_errors = calculate_error(trajectory, estimated)
+    print(f'Metrics for {solver} took before kalman: {time.time() - start_time}')
     kalman_estimated = kalman_filter(estimated)
     min_errors_kalman = calculate_error(trajectory, kalman_estimated)
+    print(f'Metrics for {solver} took after kalman: {time.time() - start_time}')
     plot_stuff(min_errors, indices, solver)
     plot_stuff(min_errors_kalman, indices, solver + '-kalman')
     save_map(kalman_estimated, trajectory, solver)
@@ -127,45 +130,12 @@ def process_data(data_points, solver):
 
 if __name__ == '__main__':
     import pickle
-    compute = pickle.load(open(f"{data_dir}/compute_good.p", "rb"))  # compute_good
-    from download.waypoints import reference
-    trajectory = np.array(reference)
-
-    estimated = []
-    errors = []
-    for l, (estimate, error, localized_coord) in compute.items():
-        # print(estimate.cost, error)
-        if 5000 < l < 9000:  # estimate.cost < 300e16 and
-            estimated.append((localized_coord.latitude, localized_coord.longitude))
-            errors.append(error)
-
-    estimated = np.array(estimated)
-
-    print(f'MSE: {np.sqrt(np.mean(dist**2))}, {len(estimated)}')
-
-    import matplotlib.ticker as mticker
-
-    x = list(range(0, len(estimated)))
-    # plt.gca().xaxis.set_major_locator(mticker.MultipleLocator(1))
-    plt.title("Distance to Ground Truth")
-    plt.xlabel("Estimated Point")
-    plt.ylabel("Min Distance to Reference Trajectory (Meters)")
-    plt.plot(x, dist)
-    plt.savefig('error.png', bbox_inches='tight', dpi=600)
-
-    plt.clf()
-    x = list(range(0, len(estimated)))
-    # plt.gca().xaxis.set_major_locator(mticker.MultipleLocator(1))
-    plt.title("Mean Pixel Re-Projection Error Per Frame")
-    plt.xlabel("Estimated Point")
-    plt.ylabel("Mean Euclidean Distance Error (Pixels)")
-    plt.plot(x, errors)
-    plt.savefig('reproj.png', bbox_inches='tight', dpi=600)
-
-    from localization.localization import CustomGoogleMapPlotter
-    localized_coord = geopy.distance.distance(meters=mag).destination(locations[0], bearing=np.rad2deg(bearing))
-    gmap3 = CustomGoogleMapPlotter(34.060458, -118.437621, 17, apikey=api_key)
-    gmap3.scatter(trajectory[:,0], trajectory[:,1], '#0000FF', size=5, marker=True)
-    gmap3.scatter(estimated[:,0], estimated[:,1], '#FF0000', size=5, marker=True)
-    gmap3.scatter([localized_coord.latitude], [localized_coord.longitude], '#0000FF', size=7, marker=True)
-    gmap3.draw(f"{data_dir}/trajectory_offsets.html")
+    for solver in ['g2o', 'ceres', 'scipy']:
+        try:
+            compute = pickle.load(open(f"{data_dir}/{solver}.p", "rb"))  # compute_good
+        except (OSError, IOError) as e:
+            print(f"Failed to read: {solver}")
+            continue
+        data_points = {k: v for k, v in compute.items() if start_frame <= k <= end_frame and v[1] is not None}
+        err, kalman_estimated = process_data(data_points, solver)
+        print(f'{solver}: {err}, len: {len(compute)}')

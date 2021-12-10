@@ -34,6 +34,6 @@ if __name__ == '__main__':
         except KeyboardInterrupt:
             print("Caught KeyboardInterrupt")
     else:
-        run_frames('g2o')
+        run_frames('ceres')
     
 
