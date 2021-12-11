@@ -1,9 +1,7 @@
 import cv2
 import os
 import subprocess
-from config import openmvg_data
-
-OPENMVG_SFM_BIN = "/home/aswerdlow/github/openmvg_build/Linux-x86_64-RELEASE"
+from config import OPENMVG_SFM_BIN
 
 def get_kvld_matches_fast(cur_frame, panos):
     frame_id, frame = cur_frame

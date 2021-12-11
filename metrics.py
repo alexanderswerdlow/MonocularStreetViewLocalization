@@ -90,6 +90,7 @@ def outlier_rejection(estimated):
 
 def plot_stuff(min_errors, indicies, solver):
     plt.title(f"Distance to Ground Truth, RMSE: {round(np.sqrt(np.mean(min_errors**2)), 3)}, Std: {round(min_errors.std(), 3)}")
+    plt.ylim(0, 15)
     plt.xlabel("Estimated Point")
     plt.ylabel("Min Dist to Reference Trajectory (Meters)")
     plt.plot(sorted(indicies), [x for _, x in sorted(zip(indicies, min_errors))])
@@ -101,7 +102,7 @@ def save_map(estimated, trajectory, solver):
     gmap3 = CustomGoogleMapPlotter(34.060458, -118.437621, 17, apikey=api_key)
     gmap3.plot(trajectory[:,0], trajectory[:,1], '#FF0000', size=5, marker=True)
     gmap3.scatter(estimated[:,0], estimated[:,1], '#0000FF', size=5, marker=True)
-    gmap3.draw(f"{data_dir}/{solver}-kalman.html")
+    gmap3.draw(f"{data_dir}/{solver}.html")
 
 def process_data(data_points, solver):
     from download.waypoints import reference
@@ -117,15 +118,15 @@ def process_data(data_points, solver):
     import time; start_time = time.time()
     min_errors = calculate_error(trajectory, estimated)
     print(f'Metrics for {solver} took before kalman: {time.time() - start_time}')
-    kalman_estimated = kalman_filter(estimated)
-    min_errors_kalman = calculate_error(trajectory, kalman_estimated)
+    # kalman_estimated = kalman_filter(estimated)
+    # min_errors_kalman = calculate_error(trajectory, kalman_estimated)
     print(f'Metrics for {solver} took after kalman: {time.time() - start_time}')
     plot_stuff(min_errors, indices, solver)
-    plot_stuff(min_errors_kalman, indices, solver + '-kalman')
-    save_map(kalman_estimated, trajectory, solver)
+    # plot_stuff(min_errors_kalman, indices, solver + '-kalman')
+    save_map(estimated, trajectory, solver)
     # except:
     #     breakpoint()
-    return np.sqrt(np.mean(min_errors**2)), kalman_estimated
+    return np.sqrt(np.mean(min_errors**2)), estimated
 
 
 if __name__ == '__main__':

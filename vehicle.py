@@ -84,7 +84,7 @@ class Vehicle:
     def match_frame_to_panorama(self, frame, metadata, n=3):
         fov = np.rad2deg(np.arctan(FRAME_WIDTH/metadata['focal_length_x']))
 
-        if self.frame_idx in self.saved_matches and self.frame_idx not in self.compute:
+        if self.frame_idx in self.saved_matches and (self.frame_idx not in self.compute or self.compute[self.frame_idx][1] is None):
             locations = []
             num_matches = []
             saved_match = self.saved_matches[self.frame_idx]

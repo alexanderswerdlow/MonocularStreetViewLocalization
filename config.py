@@ -25,3 +25,5 @@ SCALE_FACTOR = 1
 
 scaled_frame_width = int(FRAME_WIDTH/SCALE_FACTOR)
 scaled_frame_height = int(FRAME_HEIGHT/SCALE_FACTOR)
+
+OPENMVG_SFM_BIN = f'{getenv("HOME")}/github/openmvg_build/Linux-x86_64-RELEASE'
