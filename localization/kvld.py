@@ -37,8 +37,11 @@ def get_kvld_matches(cur_frame, panos, start_frame):
         matches = list(map(lambda a: a[2:].rstrip().split(','), filter(lambda x: x.startswith("m:"), pKvld)))
         print(pKvld[0], f'{len(matches)} matches for {frame_id}+{pano_id}')
         k1, k2, desc = [cv2.KeyPoint(float(m[0]), float(m[1]), 1) for m in matches], [cv2.KeyPoint(float(m[2]), float(m[3]), 1) for m in matches], [[cv2.DMatch(i + 1, i + 1, 1)] for i in range(len(matches))]
-        # reference_img = cv2.drawMatchesKnn(frame, k1, p[1], k2, desc, None, flags=2)
-        # cv2.imwrite(f'tmp_save/{frame_id}+{pano_id}.jpg', reference_img)
+        
+        # Draw debug images
+        reference_img = cv2.drawMatchesKnn(frame, k1, p[1], k2, desc, None, flags=2)
+        cv2.imwrite(f'tmp_save/{frame_id}+{pano_id}.jpg', reference_img)
+        
         all_matches.append([(p[0], p[2]), [p.pt for p in k1], [p.pt for p in k2], desc])
 
     return all_matches
