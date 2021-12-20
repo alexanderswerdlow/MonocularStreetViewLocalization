@@ -161,7 +161,7 @@ def find_points(points1, points2, K_phone, K_streetview):
     return pts3D
 
 
-def find_n_intersection(matches, n_required=3):
+def find_n_intersection(matches, n_required=4):
     all_frame_points = set(matches[0][0])
     freq = defaultdict(int)
     for frame_points, pano_points in matches:
@@ -202,7 +202,7 @@ def estimate_pose_with_3d_points_g2o(matches, locations, heading, pitch, height,
     K_streetview[:, -1] = 0  # reset principal point
     K_streetview[-1, -1] = 1
 
-    frame_points, pano_points = find_n_intersection(matches, n_required=2)
+    frame_points, pano_points = find_n_intersection(matches)
 
     import g2o
     optimizer = g2o.SparseOptimizer()
@@ -330,7 +330,7 @@ def estimate_pose_with_3d_points_ceres(matches, locations, heading, pitch, heigh
     K_streetview[:, -1] = 0  # reset principal point
     K_streetview[-1, -1] = 1
 
-    frame_points, pano_points = find_n_intersection(matches, n_required=4)
+    frame_points, pano_points = find_n_intersection(matches)
     problem = PyCeres.Problem()
 
     cameras = np.zeros((len(locations) + 1, 9))

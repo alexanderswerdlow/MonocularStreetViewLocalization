@@ -50,7 +50,7 @@ class Vehicle:
         self.gmap3.draw(f"{data_dir}/image_locations_{self.solver}.html")
 
     def run_metrics(self):
-        from metrics import process_data
+        from visualization.metrics import process_data
         data_points = {k: v for k, v in self.compute.items() if start_frame <= k <= end_frame}  # 6900
         err, kalman_estimated = process_data(data_points, self.solver)
         print(f'{self.solver}: {err}, len: {len(self.compute)}')
@@ -100,6 +100,7 @@ class Vehicle:
 
             print(f'{self.solver} running frame {self.frame_idx}')
             if self.solver == 'scipy':
+                n = 4
                 i = np.argpartition(num_matches, -n)[-n:]
                 matches = np.array(matches, dtype=object)[i]
                 locations = np.array(locations)[i]

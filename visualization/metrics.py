@@ -90,7 +90,7 @@ def outlier_rejection(estimated):
 
 def plot_stuff(min_errors, indicies, solver):
     plt.title(f"Distance to Ground Truth, RMSE: {round(np.sqrt(np.mean(min_errors**2)), 3)}, Std: {round(min_errors.std(), 3)}")
-    plt.ylim(0, 15)
+    plt.ylim(0, 10)
     plt.xlabel("Estimated Point")
     plt.ylabel("Min Dist to Reference Trajectory (Meters)")
     plt.plot(sorted(indicies), [x for _, x in sorted(zip(indicies, min_errors))])
@@ -128,10 +128,34 @@ def process_data(data_points, solver):
     #     breakpoint()
     return np.sqrt(np.mean(min_errors**2)), estimated
 
+def process_data_2(estimated, indices, solver):
+    from download.waypoints import reference
+    trajectory = np.array(reference)
+    if len(indices) == 0:
+        return 0, None
+    estimated = np.array(estimated)
+    # breakpoint()
+    # if solver == 'scipy' and len(estimated) > 0:
+    #     estimated = outlier_rejection(estimated)
+
+    # try:
+    import time; start_time = time.time()
+    min_errors = calculate_error(trajectory, estimated)
+    print(f'Metrics for {solver} took before kalman: {time.time() - start_time}')
+    # kalman_estimated = kalman_filter(estimated)
+    # min_errors_kalman = calculate_error(trajectory, kalman_estimated)
+    print(f'Metrics for {solver} took after kalman: {time.time() - start_time}')
+    plot_stuff(min_errors, indices, solver)
+    # plot_stuff(min_errors_kalman, indices, solver + '-kalman')
+    save_map(estimated, trajectory, solver)
+    # except:
+    #     breakpoint()
+    return np.sqrt(np.mean(min_errors**2)), estimated
+
 
 if __name__ == '__main__':
     import pickle
-    for solver in ['g2o', 'ceres', 'scipy']:
+    for solver in ['scipy']:
         try:
             compute = pickle.load(open(f"{data_dir}/{solver}.p", "rb"))  # compute_good
         except (OSError, IOError) as e:
@@ -140,3 +164,9 @@ if __name__ == '__main__':
         data_points = {k: v for k, v in compute.items() if start_frame <= k <= end_frame and v[1] is not None}
         err, kalman_estimated = process_data(data_points, solver)
         print(f'{solver}: {err}, len: {len(compute)}')
+
+    # import pickle
+    # compute = pickle.load(open(f"{data_dir}/gps_plot_data.pkl", "rb"))
+    # err, kalman_estimated = process_data_2(compute[0], list(range(len(compute[0]))), 'a0')
+    # err, kalman_estimated = process_data_2(compute[1], list(range(len(compute[1]))), 'a1')
+    # err, kalman_estimated = process_data_2(compute[2], list(range(len(compute[2]))), 'a2')
