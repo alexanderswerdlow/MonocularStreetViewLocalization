@@ -201,7 +201,6 @@ $RECYCLE.BIN/
 
 *.python-version
 .vscode/
-images/
 data/
 config.py
 tmp/
