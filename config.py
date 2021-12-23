@@ -7,7 +7,8 @@ images_dir = f'{data_dir}/images'
 sqlite_path = f'{data_dir}/street_view_cache'
 openmvg_data = f'{data_dir}/openmvg'
 
-start_frame = 5000
+start_frame = 4900 #3500
+end_frame = 5100 # 8100
 segmentation_model_dir = './localization/enet-cityscapes'
 
 recording_dir = f'{data_dir}/recordings/2021-11-10T13-16-47'
@@ -24,3 +25,5 @@ SCALE_FACTOR = 1
 
 scaled_frame_width = int(FRAME_WIDTH/SCALE_FACTOR)
 scaled_frame_height = int(FRAME_HEIGHT/SCALE_FACTOR)
+
+OPENMVG_SFM_BIN = f'{getenv("HOME")}/github/openmvg_build/Linux-x86_64-RELEASE'
