@@ -1,11 +1,9 @@
 from vehicle import Vehicle
 import os
 import shutil
-
 from multiprocessing import get_context
 
 def run_frames(solver):
-    print(solver)
     test_vehicle = Vehicle(solver=solver)
     test_vehicle.iterate_frames()
     print('finished', solver)
@@ -29,7 +27,6 @@ if __name__ == '__main__':
     if multi:
         try:
             with get_context("spawn").Pool(3) as pool:
-                # print(pool.map(run_frames, ['ceres', 'g2o', 'scipy']))
                 pool.map(run_frames, ['ceres', 'g2o', 'scipy'])
         except KeyboardInterrupt:
             print("Caught KeyboardInterrupt")

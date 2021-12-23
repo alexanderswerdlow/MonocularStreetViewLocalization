@@ -64,7 +64,7 @@ class Vehicle:
                 _, frame = self.video.read()
                 row['camera_matrix'] = self.format_camera_matrix(row)
                 self.localize_frame(frame, row)
-                # print(f'{self.solver}, Frame {self.frame_idx} took: {time.time() - start_time}')
+                print(f'{self.solver}, Frame {self.frame_idx} took: {time.time() - start_time}')
                 self.frame_idx += 1
             if self.frame_idx > end_frame:
                 break
@@ -112,7 +112,6 @@ class Vehicle:
                 locations = np.array(locations)[i]
                 localized_coord, locations = estimate_pose_with_3d_points_g2o(matches, locations, metadata['course'], 12, 2.5, K, metadata, fov, scaled_frame_width, scaled_frame_height)
             elif self.solver == 'ceres':
-                # n = min(5, len(matches))
                 i = np.argpartition(num_matches, -n)[-n:]
                 matches = np.array(matches, dtype=object)[i]
                 locations = np.array(locations)[i]
